@@ -431,7 +431,7 @@ class ClaudePeersBridge:
     def _health_ok(self) -> bool:
         try:
             req = urllib.request.Request(f"{self._state.broker_url}/health")
-            req.add_header("User-Agent", "hermes-peers-bridge/1.0")
+            req.add_header("User-Agent", "peers-bridge/1.0")
             if self._state.broker_auth:
                 req.add_header("Authorization", self._state.broker_auth)
             with urllib.request.urlopen(req, timeout=3.0) as response:
@@ -442,7 +442,7 @@ class ClaudePeersBridge:
 
     def _post_json(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         data = json.dumps(body).encode("utf-8")
-        headers = {"Content-Type": "application/json", "User-Agent": "hermes-peers-bridge/1.0"}
+        headers = {"Content-Type": "application/json", "User-Agent": "peers-bridge/1.0"}
         if self._state.broker_auth:
             headers["Authorization"] = self._state.broker_auth
         request = urllib.request.Request(

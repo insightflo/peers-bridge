@@ -1,4 +1,4 @@
-# claude-peers-bridge
+# peers-bridge
 
 Hermes Agent plugin for cross-network peer communication via claude-peers broker.
 
@@ -88,7 +88,7 @@ Do not commit or share the real hub token. Store it in a protected environment f
 
 - **Broker resolved at loop time, not import time**: Plugin modules are imported early (via `model_tools.py` side-effect), before `_HERMES_GATEWAY=1` is set. The `_run_loop` re-resolves the broker target every iteration, so the gateway automatically switches to the remote broker once the env is set.
 
-- **User-Agent header**: Cloudflare tunnels block Python's default `Python-urllib/x.x` User-Agent. All HTTP requests include `User-Agent: hermes-peers-bridge/1.0`.
+- **User-Agent header**: Cloudflare tunnels block Python's default `Python-urllib/x.x` User-Agent. All HTTP requests include `User-Agent: peers-bridge/1.0`.
 
 - **Subagent exclusion**: Processes with `HERMES_KANBAN_TASK` or `HERMES_DELEGATE_CHILD=1` env vars skip peer registration.
 
