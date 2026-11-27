@@ -97,3 +97,23 @@ Do not commit or share the real hub token. Store it in a protected environment f
 - **Retry deduplication**: Remote registrations with the same PID and working directory replace the stale row created by the same running gateway after a transient broker outage.
 
 - **Alias identity**: Human-readable aliases use the documented safe ASCII contract, are stored separately from work summaries, enforced case-insensitively as unique, and resolved to canonical peer IDs before message persistence.
+
+## Real-Time SSE Push & Event-Driven Wake-up
+
+The bridge now defaults to SSE push (`CLAUDE_PEERS_BRIDGE_TRANSPORT=sse`) instead of 1-second polling:
+
+- **Zero-polling idle**: `bridge.py` connects to `GET /events?id=<peer_id>` with `Authorization: Bearer ...` and receives lightweight `event: wake` hints on message arrival, fetching bodies via `/poll-messages` (`mark_delivered: false`) and acknowledging via `POST /mark-message-delivered`. A slow safety poll (`CLAUDE_PEERS_BRIDGE_SAFETY_POLL_SEC=30`) guards against silent tunnel drops.
+- **Event-driven wake-up**: When `ctx.inject_message()` returns `False` (idle agent), the bridge can trigger `ctx.wake_session()`, `ctx.notify()`, `CLAUDE_PEERS_WAKE_CMD` (`shlex.split`, `shell=False`), or `CLAUDE_PEERS_WAKE_WEBHOOK` (minimal metadata only) with debounce (`CLAUDE_PEERS_WAKE_DEBOUNCE_SEC=0.25`).
+- **Force-delete revocation**: Deleting an online peer with `DELETE /api/peers/:id?force=1` sends `event: revoked` and returns `410 Gone` so the bridge halts cleanly instead of resurrecting.
+
+## Peer Registry CRUD & Live Dashboard (`/dashboard`)
+
+Copy both `broker.remote-hub.ts` (as `broker.ts`) and `dashboard.html` to your broker directory.
+
+- **Live Dashboard**: Open `http://127.0.0.1:7899/dashboard` (or `https://your-broker.example.com/dashboard`). When `CLAUDE_PEERS_HUB_TOKEN` is set, the UI prompts for the Bearer token and streams live updates over `GET /api/stream` + `GET /api/snapshot`.
+- **Peer CRUD API**:
+  - `GET /api/peers` — list all online and offline managed peers
+  - `POST /api/peers` — pre-register a managed peer (`alias`, `role`, `summary`, `cwd`)
+  - `PATCH /api/peers/:id` — update alias, summary, role, cwd, or managed flag
+  - `DELETE /api/peers/:id` — delete offline peer (or `?force=1` for online peer)
+  - `POST /api/messages` — send a system message directly from the dashboard to any peer
