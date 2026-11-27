@@ -6,10 +6,13 @@ import atexit
 import json
 import os
 import queue
+import shlex
+import socket
 import subprocess
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,7 +23,9 @@ DEFAULT_BROKER_PORT = int(os.environ.get("CLAUDE_PEERS_PORT", "7899"))
 
 # Broker target is decided at __init__ time, not module-import time,
 # because plugin modules can be imported before _HERMES_GATEWAY is set.
-DEFAULT_POLL_INTERVAL = float(os.environ.get("CLAUDE_PEERS_BRIDGE_POLL_INTERVAL_SEC", "1.0"))
+DEFAULT_POLL_INTERVAL = float(
+    os.environ.get("CLAUDE_PEERS_BRIDGE_POLL_INTERVAL_SEC", "1.0")
+)
 DEFAULT_HEARTBEAT_INTERVAL = float(
     os.environ.get("CLAUDE_PEERS_BRIDGE_HEARTBEAT_INTERVAL_SEC", "15.0")
 )
@@ -107,7 +112,9 @@ def _find_broker_script() -> Path | None:
     candidates = []
     if env_home:
         candidates.append(Path(env_home) / "broker.ts")
-    candidates.append(Path.home() / ".local" / "share" / "claude-peers-mcp" / "broker.ts")
+    candidates.append(
+        Path.home() / ".local" / "share" / "claude-peers-mcp" / "broker.ts"
+    )
     for candidate in candidates:
         if candidate.is_file():
             return candidate
@@ -137,11 +144,14 @@ class ClaudePeersBridge:
         # Resolve broker target at init time (not module-import time).
         broker_url, is_remote, broker_auth = _resolve_broker()
         self._state = BrokerPeerState(
-            logical_name=_logical_name(os.environ.get("CLAUDE_PEERS_NAME_PREFIX") or "hermes"),
+            logical_name=_logical_name(
+                os.environ.get("CLAUDE_PEERS_NAME_PREFIX") or "hermes"
+            ),
             broker_url=broker_url,
             is_remote=is_remote,
             broker_auth=broker_auth,
-            autostart=(not is_sub) and (os.environ.get("CLAUDE_PEERS_BRIDGE_AUTOSTART", "1") != "0"),
+            autostart=(not is_sub)
+            and (os.environ.get("CLAUDE_PEERS_BRIDGE_AUTOSTART", "1") != "0"),
         )
         if is_sub:
             self._state.last_error = "subagent detected (HERMES_KANBAN_TASK/HERMES_DELEGATE_CHILD) — peer registration skipped"
@@ -156,7 +166,31 @@ class ClaudePeersBridge:
         self._queued_message_ids: set[int] = set()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        self._lifecycle_lock = threading.RLock()
+        self._transport = os.environ.get("CLAUDE_PEERS_BRIDGE_TRANSPORT", "sse").lower()
+        if self._transport not in {"sse", "poll"}:
+            self._transport = "sse"
+        self._safety_poll_sec = max(
+            0.01, float(os.environ.get("CLAUDE_PEERS_BRIDGE_SAFETY_POLL_SEC", "30.0"))
+        )
+        self._wake_debounce_sec = max(
+            0.0, float(os.environ.get("CLAUDE_PEERS_WAKE_DEBOUNCE_SEC", "0.25"))
+        )
+        self._wake_cmd = os.environ.get("CLAUDE_PEERS_WAKE_CMD", "")
+        self._wake_webhook = os.environ.get("CLAUDE_PEERS_WAKE_WEBHOOK", "")
+        self._wake_session = getattr(ctx, "wake_session", None)
+        self._notify = getattr(ctx, "notify", None)
+        self._wake_lock = threading.Lock()
+        self._last_wake = float("-inf")
+        self._wake_event = threading.Event()
+        self._sse_connected = False
+        self._sse_thread: threading.Thread | None = None
+        self._sse_response = None
+        self._revoked = False
+        self._queued_message_ids: set[int] = set()
+        # Accepted injections awaiting acknowledgement must never be injected again.
+        self._injected_message_ids: set[int] = set()
         atexit.register(self.stop)
 
     @property
@@ -164,174 +198,430 @@ class ClaudePeersBridge:
         return self._state
 
     def start(self) -> None:
+        with self._lifecycle_lock:
+            self._start()
+
+    def _start(self) -> None:
         with self._lock:
-            if self._thread and self._thread.is_alive():
-                self._state.running = True
+            # Do not create overlapping generations if a previous stop is finishing.
+            if any(t and t.is_alive() for t in (self._thread, self._sse_thread)):
                 return
+            self._revoked = False
+            self._state.last_error = None
             self._stop_event.clear()
+            self._wake_event.clear()
             self._thread = threading.Thread(
-                target=self._run_loop,
-                name="claude-peers-bridge",
-                daemon=True,
+                target=self._run_loop, name="claude-peers-bridge", daemon=True
             )
-            self._thread.start()
             self._state.running = True
+            self._thread.start()
+            if self._transport == "sse":
+                self._sse_thread = threading.Thread(
+                    target=self._sse_loop, name="claude-peers-sse", daemon=True
+                )
+                self._sse_thread.start()
 
     def stop(self) -> None:
+        with self._lifecycle_lock:
+            self._stop()
+
+    def _stop(self) -> None:
         with self._lock:
             self._stop_event.set()
-            thread = self._thread
-            self._thread = None
+            self._wake_event.set()
+            self._close_sse_stream()
+            threads = (self._thread, self._sse_thread)
             self._state.running = False
-        if thread and thread.is_alive():
-            thread.join(timeout=1.0)
+        for thread in threads:
+            if (
+                thread
+                and thread is not threading.current_thread()
+                and thread.is_alive()
+            ):
+                thread.join(timeout=6.0)
         try:
             self._unregister()
         except Exception:
             pass
 
     def status_payload(self) -> dict[str, Any]:
-        return {
-            "ok": True,
-            "running": self._state.running,
-            "peer_id": self._state.peer_id,
-            "logical_name": self._state.logical_name,
-            "summary": self._state.summary,
-            "broker_url": self._state.broker_url,
-            "is_remote": self._state.is_remote,
-            "cwd": self._cwd,
-            "git_root": self._git_root,
-            "tty": self._tty,
-            "last_error": self._state.last_error,
-            "autostart": self._state.autostart,
-        }
-
-    def list_peers(self, scope: str = "machine") -> str:
-        self._ensure_registered()
-        payload = self._post_json(
-            "/list-peers",
-            {
-                "scope": scope,
+        with self._lock:
+            return {
+                "ok": True,
+                "running": self._state.running,
+                "peer_id": self._state.peer_id,
+                "logical_name": self._state.logical_name,
+                "summary": self._state.summary,
+                "broker_url": self._state.broker_url,
+                "is_remote": self._state.is_remote,
                 "cwd": self._cwd,
                 "git_root": self._git_root,
-                "exclude_id": self._state.peer_id,
-            },
-        )
+                "tty": self._tty,
+                "last_error": self._state.last_error,
+                "autostart": self._state.autostart,
+                "transport": self._transport,
+                "sse_connected": self._sse_connected,
+                "wake_configured": bool(
+                    callable(self._wake_session)
+                    or callable(self._notify)
+                    or self._wake_cmd.strip()
+                    or self._wake_webhook
+                ),
+            }
+
+    def list_peers(self, scope: str = "machine") -> str:
+        with self._lock:
+            self._ensure_registered()
+            payload = self._post_json(
+                "/list-peers",
+                {
+                    "scope": scope,
+                    "cwd": self._cwd,
+                    "git_root": self._git_root,
+                    "exclude_id": self._state.peer_id,
+                },
+            )
         return _json_response({"ok": True, "scope": scope, "peers": payload})
 
     def send_message(self, to_id: str, message: str) -> str:
-        self._ensure_registered()
-        payload = self._post_json(
-            "/send-message",
-            {
-                "from_id": self._state.peer_id,
-                "from_pid": os.getpid(),
-                "to_id": to_id,
-                "text": message,
-            },
-        )
+        with self._lock:
+            self._ensure_registered()
+            payload = self._post_json(
+                "/send-message",
+                {
+                    "from_id": self._state.peer_id,
+                    "from_pid": os.getpid(),
+                    "to_id": to_id,
+                    "text": message,
+                },
+            )
         return _json_response(payload)
 
     def check_messages(self) -> str:
-        self._ensure_registered()
-        payload = self._poll_messages()
+        with self._lock:
+            self._ensure_registered()
+            payload = self._poll_messages()
         return _json_response({"ok": True, "messages": payload})
 
     def set_summary(self, summary: str) -> str:
-        self._state.summary = summary
-        self._ensure_registered()
-        payload = self._post_json(
-            "/set-summary",
-            {
-                "id": self._state.peer_id,
-                "summary": summary,
-            },
-        )
+        with self._lock:
+            self._state.summary = summary
+            self._ensure_registered()
+            payload = self._post_json(
+                "/set-summary", {"id": self._state.peer_id, "summary": summary}
+            )
         return _json_response(payload)
 
     def set_alias(self, alias: str) -> str:
-        self._ensure_registered()
-        payload = self._post_json(
-            "/set-alias",
-            {
-                "id": self._state.peer_id,
-                "alias": alias,
-            },
-        )
-        # Update local state only after the broker accepts and normalizes it.
-        accepted_alias = payload.get("alias")
-        if isinstance(accepted_alias, str):
-            self._state.logical_name = accepted_alias
+        with self._lock:
+            self._ensure_registered()
+            payload = self._post_json(
+                "/set-alias", {"id": self._state.peer_id, "alias": alias}
+            )
+            accepted_alias = payload.get("alias")
+            if isinstance(accepted_alias, str):
+                self._state.logical_name = accepted_alias
         return _json_response(payload)
 
-    def _run_loop(self) -> None:
-        last_heartbeat = 0.0
-        while not self._stop_event.is_set():
+    def _close_sse_stream(self) -> None:
+        # shutdown unblocks readline before close takes the buffered reader lock.
+        response = self._sse_response
+        self._sse_response = None
+        self._sse_connected = False
+        if response is not None:
             try:
-                # Re-resolve broker target each iteration — _HERMES_GATEWAY
-                # may be set after this thread starts (plugin discovery via
-                # model_tools.py import runs before gateway sets it).
-                new_url, new_remote, new_auth = _resolve_broker()
-                if new_url != self._state.broker_url:
-                    if self._state.peer_id:
-                        self._unregister()
-                    self._state.broker_url = new_url
-                    self._state.is_remote = new_remote
-                    self._state.broker_auth = new_auth
-                self._ensure_registered()
-                now = time.time()
-                if now - last_heartbeat >= DEFAULT_HEARTBEAT_INTERVAL:
-                    self._heartbeat()
-                    last_heartbeat = now
-                self._drain_pending_injections()
-                messages = self._poll_messages(mark_delivered=False)
-                if messages:
-                    for message in messages:
-                        self._queue_injection(
-                            self._format_injected_message(message),
-                            message_id=message.get("id"),
+                response.fp.raw._sock.shutdown(socket.SHUT_RDWR)
+            except (AttributeError, OSError):
+                pass
+            response.close()
+
+    def _set_peer_id(self, peer_id: str | None) -> None:
+        with self._lock:
+            if peer_id == self._state.peer_id:
+                return
+            self._state.peer_id = peer_id
+            self._queued_message_ids.clear()
+            self._injected_message_ids.clear()
+            while True:
+                try:
+                    self._pending_injections.get_nowait()
+                except queue.Empty:
+                    break
+            self._close_sse_stream()
+            self._wake_event.set()
+
+    def _revoke(self) -> None:
+        with self._lock:
+            self._revoked = True
+            self._stop_event.set()
+            self._set_peer_id(None)
+            self._state.running = False
+            self._state.last_error = "peer revoked by broker"
+            self._wake_event.set()
+
+    def _sse_loop(self) -> None:
+        backoff = (1.0, 2.0, 5.0, 15.0)
+        attempt = 0
+        while not self._stop_event.is_set():
+            with self._lock:
+                peer_id = self._state.peer_id
+                url = self._state.broker_url
+                auth = self._state.broker_auth
+            if not peer_id:
+                self._stop_event.wait(0.1)
+                continue
+            headers = {"User-Agent": "peers-bridge/1.0", "Accept": "text/event-stream"}
+            if auth:
+                headers["Authorization"] = auth
+            request = urllib.request.Request(
+                f"{url}/events?{urllib.parse.urlencode({'id': peer_id})}",
+                headers=headers,
+            )
+            response = None
+            try:
+                response = urllib.request.urlopen(request, timeout=5.0)
+                with self._lock:
+                    if self._stop_event.is_set() or self._state.peer_id != peer_id:
+                        continue
+                    self._sse_response = response
+                    self._sse_connected = True
+                    # Bound connection establishment, then allow an idle stream.
+                    # stop/re-registration explicitly shuts this socket down.
+                    try:
+                        response.fp.raw._sock.settimeout(None)
+                    except AttributeError:
+                        pass
+                    self._wake_event.set()  # Catch up once after every reconnect.
+                while not self._stop_event.is_set():
+                    line = response.readline()
+                    if not line:
+                        break
+                    with self._lock:
+                        if self._state.peer_id != peer_id:
+                            break
+                        attempt = 0
+                        field, _, value = (
+                            line.decode("utf-8", errors="replace")
+                            .rstrip("\r\n")
+                            .partition(":")
                         )
-                    self._drain_pending_injections()
-                self._state.last_error = None
+                        value = value.lstrip()
+                        if field == "event" and value == "revoked":
+                            self._revoke()
+                            return
+                        if (field == "event" and value == "wake") or (
+                            field == "data" and "messages" in value
+                        ):
+                            self._wake_event.set()
+            except urllib.error.HTTPError as exc:
+                exc.close()
+                with self._lock:
+                    if self._state.peer_id == peer_id:
+                        if exc.code == 410:
+                            self._revoke()
+                            return
+                        if exc.code == 404:
+                            self._set_peer_id(None)
+                        self._state.last_error = (
+                            f"broker /events failed: HTTP {exc.code}"
+                        )
             except Exception as exc:
-                self._state.last_error = str(exc)
-            self._stop_event.wait(DEFAULT_POLL_INTERVAL)
+                with self._lock:
+                    if not self._stop_event.is_set() and self._state.peer_id == peer_id:
+                        self._state.last_error = f"broker /events failed: {exc}"
+            finally:
+                with self._lock:
+                    if self._sse_response is response:
+                        self._sse_response = None
+                        self._sse_connected = False
+                    self._wake_event.set()  # Resume legacy polling on disconnect.
+                if response is not None:
+                    response.close()
+            if self._stop_event.wait(backoff[min(attempt, len(backoff) - 1)]):
+                break
+            attempt += 1
+
+    def _run_loop(self) -> None:
+        last_heartbeat = last_poll = float("-inf")
+        try:
+            while not self._stop_event.is_set():
+                # All wake producers use the same lock: do not lose a wake
+                # arriving between observing the flag and clearing it.
+                with self._lock:
+                    wake = self._wake_event.is_set()
+                    self._wake_event.clear()
+                failed = False
+                try:
+                    with self._lock:
+                        if self._stop_event.is_set():
+                            break
+                        new_url, new_remote, new_auth = _resolve_broker()
+                        if (new_url, new_remote, new_auth) != (
+                            self._state.broker_url,
+                            self._state.is_remote,
+                            self._state.broker_auth,
+                        ):
+                            self._unregister()
+                            self._state.broker_url = new_url
+                            self._state.is_remote = new_remote
+                            self._state.broker_auth = new_auth
+                        self._ensure_registered(verify_heartbeat=False)
+                        now = time.monotonic()
+                        if now - last_heartbeat >= DEFAULT_HEARTBEAT_INTERVAL:
+                            last_heartbeat = now
+                            self._heartbeat()
+                        interval = (
+                            self._safety_poll_sec
+                            if self._transport == "sse" and self._sse_connected
+                            else DEFAULT_POLL_INTERVAL
+                        )
+                        if wake or now - last_poll >= interval:
+                            messages = self._poll_messages(mark_delivered=False)
+                            last_poll = time.monotonic()
+                            for message in messages:
+                                self._queue_injection(
+                                    self._format_injected_message(message),
+                                    message_id=message.get("id"),
+                                )
+                    self._drain_pending_injections()
+                except Exception as exc:
+                    failed = True
+                    with self._lock:
+                        if not self._revoked:
+                            self._state.last_error = str(exc)
+                with self._lock:
+                    now = time.monotonic()
+                    interval = (
+                        self._safety_poll_sec
+                        if self._transport == "sse" and self._sse_connected
+                        else DEFAULT_POLL_INTERVAL
+                    )
+                    delay = (
+                        min(
+                            last_heartbeat + DEFAULT_HEARTBEAT_INTERVAL,
+                            last_poll + interval,
+                        )
+                        - now
+                    )
+                    if not self._pending_injections.empty():
+                        delay = min(delay, DEFAULT_POLL_INTERVAL)
+                    if failed:
+                        delay = DEFAULT_POLL_INTERVAL
+                self._wake_event.wait(max(0.0, delay))
+        finally:
+            with self._lock:
+                self._state.running = False
 
     def _queue_injection(self, content: str, message_id: int | None = None) -> None:
-        if message_id is not None:
-            if message_id in self._queued_message_ids:
-                return
-            self._queued_message_ids.add(message_id)
-        self._pending_injections.put((message_id, content))
+        with self._lock:
+            if message_id is not None:
+                if message_id in self._queued_message_ids:
+                    return
+                self._queued_message_ids.add(message_id)
+            self._pending_injections.put((message_id, content))
 
     def _drain_pending_injections(self) -> None:
-        while True:
-            try:
-                message_id, content = self._pending_injections.get_nowait()
-            except queue.Empty:
-                return
-            injected = False
-            try:
-                injected = bool(self._ctx.inject_message(content, role="system"))
-            except Exception:
-                injected = False
-            if not injected:
-                # Gateway mode: ctx.inject_message requires _cli_ref, which is
-                # None in the gateway process, so incoming peer messages were
-                # silently dropped. Route them through the gateway's own wake
-                # path (home channel) instead.
-                injected = self._inject_via_gateway(content)
-            if not injected:
-                self._pending_injections.put((message_id, content))
-                return
-            if message_id is not None:
+        while not self._stop_event.is_set():
+            with self._lock:
                 try:
-                    self._mark_message_delivered(message_id)
+                    message_id, content = self._pending_injections.get_nowait()
+                except queue.Empty:
+                    return
+                try:
+                    already_injected = (
+                        message_id is not None
+                        and message_id in self._injected_message_ids
+                    )
+                    injected = already_injected
+                    if not injected:
+                        injected = bool(self._ctx.inject_message(content, role="system"))
+                        if not injected:
+                            injected = self._inject_via_gateway(content)
+                    if not injected:
+                        self._pending_injections.put((message_id, content))
+                        idle = True
+                    else:
+                        idle = False
+                        if message_id is not None:
+                            self._injected_message_ids.add(message_id)
+                            self._mark_message_delivered(message_id)
+                            self._queued_message_ids.discard(message_id)
+                            self._injected_message_ids.discard(message_id)
                 except Exception as exc:
-                    self._state.last_error = f"mark delivered failed for message {message_id}: {exc}"
+                    self._state.last_error = (
+                        f"delivery failed for message {message_id}: {exc}"
+                    )
                     self._pending_injections.put((message_id, content))
                     return
-                self._queued_message_ids.discard(message_id)
+            if idle:
+                self._wake_idle_session()
+                return
+
+    def _wake_idle_session(self) -> None:
+        if not self.status_payload()["wake_configured"] or not self._wake_lock.acquire(
+            blocking=False
+        ):
+            return
+        try:
+            now = time.monotonic()
+            if now - self._last_wake < self._wake_debounce_sec:
+                return
+            if self._stop_event.wait(self._wake_debounce_sec):
+                return
+            self._last_wake = time.monotonic()
+            with self._lock:
+                peer_id = self._state.peer_id
+                count = self._pending_injections.qsize()
+            if not count:
+                return
+            if callable(self._wake_session):
+                self._wake_session()
+            elif callable(self._notify):
+                self._notify("Peer messages pending")
+            if self._wake_cmd:
+                try:
+                    argv = shlex.split(self._wake_cmd)
+                except ValueError as exc:
+                    with self._lock:
+                        self._state.last_error = f"invalid wake command: {exc}"
+                    return
+                if argv:
+                    subprocess.run(
+                        argv,
+                        shell=False,
+                        timeout=5.0,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+            if self._wake_webhook:
+                if urllib.parse.urlsplit(self._wake_webhook).scheme not in {
+                    "http",
+                    "https",
+                }:
+                    raise ValueError("wake webhook must use http:// or https://")
+                request = urllib.request.Request(
+                    self._wake_webhook,
+                    method="POST",
+                    data=json.dumps(
+                        {
+                            "event": "peer_messages_pending",
+                            "peer_id": peer_id,
+                            "count": count,
+                        }
+                    ).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": "peers-bridge/1.0",
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=3.0):
+                    pass
+        except Exception as exc:
+            with self._lock:
+                self._state.last_error = f"wake failed: {exc}"
+        finally:
+            self._wake_lock.release()
 
     def _inject_via_gateway(self, content: str) -> bool:
         """Deliver an incoming peer message inside a gateway process.
@@ -446,60 +736,65 @@ class ClaudePeersBridge:
             f"{reply_note}"
         )
 
-    def _ensure_registered(self) -> None:
-        if self._state.peer_id:
-            try:
-                payload = self._post_json("/heartbeat", {"id": self._state.peer_id})
-            except RuntimeError:
-                # Broker may have restarted or evicted this row.  Fall through
-                # to a fresh registration instead of keeping a stale peer id.
-                self._state.peer_id = None
-            else:
-                if not payload.get("reregister"):
+    def _ensure_registered(self, verify_heartbeat: bool = True) -> None:
+        with self._lock:
+            if self._revoked:
+                raise RuntimeError("peer revoked by broker")
+            if self._state.peer_id:
+                if not verify_heartbeat:
                     return
-                self._state.peer_id = None
-
-        self._ensure_broker()
-        payload = self._post_json(
-            "/register",
-            {
-                "pid": os.getpid(),
-                "parent_pid": os.getppid(),
-                "logical_name": self._state.logical_name,
-                "cwd": self._cwd,
-                "git_root": self._git_root,
-                "tty": self._tty,
-                "summary": self._state.summary,
-            },
-        )
-        peer_id = payload.get("id")
-        if not peer_id:
-            raise RuntimeError(f"Broker register failed: {payload}")
-        self._state.peer_id = peer_id
-        registered_alias = payload.get("alias")
-        if isinstance(registered_alias, str):
-            self._state.logical_name = registered_alias
+                try:
+                    self._heartbeat()
+                except RuntimeError:
+                    if self._revoked:
+                        raise
+                    self._set_peer_id(None)
+                else:
+                    return
+            self._ensure_broker()
+            payload = self._post_json(
+                "/register",
+                {
+                    "pid": os.getpid(),
+                    "parent_pid": os.getppid(),
+                    "logical_name": self._state.logical_name,
+                    "cwd": self._cwd,
+                    "git_root": self._git_root,
+                    "tty": self._tty,
+                    "summary": self._state.summary,
+                },
+            )
+            peer_id = payload.get("id")
+            if not peer_id:
+                raise RuntimeError(f"Broker register failed: {payload}")
+            self._set_peer_id(peer_id)
+            self._state.last_error = None
+            registered_alias = payload.get("alias")
+            if isinstance(registered_alias, str):
+                self._state.logical_name = registered_alias
 
     def _heartbeat(self) -> None:
-        if not self._state.peer_id:
-            return
-        payload = self._post_json("/heartbeat", {"id": self._state.peer_id})
-        if payload.get("reregister"):
-            self._state.peer_id = None
-            self._ensure_registered()
+        with self._lock:
+            if not self._state.peer_id:
+                return
+            payload = self._post_json("/heartbeat", {"id": self._state.peer_id})
+            if payload.get("reregister"):
+                self._set_peer_id(None)
+                self._ensure_registered(verify_heartbeat=False)
 
     def _poll_messages(self, *, mark_delivered: bool = True) -> list[dict[str, Any]]:
-        if not self._state.peer_id:
-            return []
-        payload = self._post_json(
-            "/poll-messages",
-            {"id": self._state.peer_id, "mark_delivered": mark_delivered},
-        )
-        if payload.get("reregister"):
-            self._state.peer_id = None
-            self._ensure_registered()
-            return []
-        return payload.get("messages", []) or []
+        with self._lock:
+            if not self._state.peer_id:
+                return []
+            payload = self._post_json(
+                "/poll-messages",
+                {"id": self._state.peer_id, "mark_delivered": mark_delivered},
+            )
+            if payload.get("reregister"):
+                self._set_peer_id(None)
+                self._ensure_registered(verify_heartbeat=False)
+                return []
+            return payload.get("messages", []) or []
 
     def _mark_message_delivered(self, message_id: int) -> None:
         try:
@@ -515,12 +810,13 @@ class ClaudePeersBridge:
             raise
 
     def _unregister(self) -> None:
-        if not self._state.peer_id:
-            return
-        try:
-            self._post_json("/unregister", {"id": self._state.peer_id})
-        finally:
-            self._state.peer_id = None
+        with self._lock:
+            if not self._state.peer_id:
+                return
+            try:
+                self._post_json("/unregister", {"id": self._state.peer_id})
+            finally:
+                self._set_peer_id(None)
 
     def _ensure_broker(self) -> None:
         if self._health_ok():
@@ -543,19 +839,23 @@ class ClaudePeersBridge:
                 start_new_session=True,
             )
         except FileNotFoundError as exc:
-            raise RuntimeError("bun is required to launch the claude-peers broker") from exc
+            raise RuntimeError(
+                "bun is required to launch the claude-peers broker"
+            ) from exc
 
         deadline = time.time() + 3.0
         while time.time() < deadline:
             if self._health_ok():
                 return
             time.sleep(0.1)
-        raise RuntimeError(f"claude-peers broker did not become healthy at {self._state.broker_url}")
+        raise RuntimeError(
+            f"claude-peers broker did not become healthy at {self._state.broker_url}"
+        )
 
     def _health_ok(self) -> bool:
         try:
             req = urllib.request.Request(f"{self._state.broker_url}/health")
-            req.add_header("User-Agent", "hermes-peers-bridge/1.0")
+            req.add_header("User-Agent", "peers-bridge/1.0")
             if self._state.broker_auth:
                 req.add_header("Authorization", self._state.broker_auth)
             with urllib.request.urlopen(req, timeout=3.0) as response:
@@ -566,7 +866,7 @@ class ClaudePeersBridge:
 
     def _post_json(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         data = json.dumps(body).encode("utf-8")
-        headers = {"Content-Type": "application/json", "User-Agent": "hermes-peers-bridge/1.0"}
+        headers = {"Content-Type": "application/json", "User-Agent": "peers-bridge/1.0"}
         if self._state.broker_auth:
             headers["Authorization"] = self._state.broker_auth
         request = urllib.request.Request(
@@ -580,7 +880,13 @@ class ClaudePeersBridge:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
+            if path == "/heartbeat" and exc.code == 410:
+                self._revoke()
+                exc.close()
+                raise RuntimeError("peer revoked by broker") from exc
             detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"broker {path} failed: HTTP {exc.code} {detail}") from exc
+            raise RuntimeError(
+                f"broker {path} failed: HTTP {exc.code} {detail}"
+            ) from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(f"broker {path} failed: {exc.reason}") from exc
