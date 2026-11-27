@@ -27,6 +27,8 @@ import type {
 const PORT = parseInt(process.env.CLAUDE_PEERS_PORT ?? "7899", 10);
 const DB_PATH = process.env.CLAUDE_PEERS_DB ?? `${process.env.HOME}/.claude-peers.db`;
 const HUB_TOKEN = process.env.CLAUDE_PEERS_HUB_TOKEN ?? "";
+const CF_ACCESS_TEAM_DOMAIN = (process.env.CLAUDE_PEERS_CF_ACCESS_TEAM_DOMAIN ?? "").trim().replace(/\/+$/, "");
+const CF_ACCESS_AUD = (process.env.CLAUDE_PEERS_CF_ACCESS_AUD ?? "").trim();
 const REMOTE_HUB = HUB_TOKEN.length > 0;
 const STALE_PEER_TIMEOUT_MS = parseInt(
   process.env.CLAUDE_PEERS_STALE_TIMEOUT_MS ?? "90000",
@@ -683,6 +685,91 @@ function validToken(candidate: string): boolean {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+type JwkKey = JsonWebKey & { kid?: string; kty?: string };
+let cfJwksCache: { keys: JwkKey[]; fetchedAt: number } | null = null;
+const CF_JWKS_TTL_MS = 60 * 60_000;
+
+function extractCfJwt(req: Request): string {
+  const headerJwt = (req.headers.get("Cf-Access-Jwt-Assertion") ?? "").trim();
+  if (headerJwt) return headerJwt;
+  const cookie = req.headers.get("Cookie") ?? "";
+  for (const part of cookie.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith("CF_Authorization=")) {
+      return trimmed.slice("CF_Authorization=".length).trim();
+    }
+  }
+  return "";
+}
+
+function b64urlDecode(segment: string): Uint8Array {
+  const padded = segment.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (segment.length % 4)) % 4);
+  return new Uint8Array(Buffer.from(padded, "base64"));
+}
+
+async function getCfJwks(forceRefresh = false): Promise<JwkKey[]> {
+  if (!CF_ACCESS_TEAM_DOMAIN) return [];
+  const now = Date.now();
+  if (!forceRefresh && cfJwksCache && now - cfJwksCache.fetchedAt < CF_JWKS_TTL_MS) {
+    return cfJwksCache.keys;
+  }
+  const resp = await fetch(`${CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`, {
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!resp.ok) throw new Error(`JWKS fetch HTTP ${resp.status}`);
+  const data = await resp.json() as { keys?: JwkKey[] };
+  const keys = Array.isArray(data.keys) ? data.keys : [];
+  cfJwksCache = { keys, fetchedAt: now };
+  return keys;
+}
+
+async function verifyCloudflareAccess(req: Request): Promise<string | null> {
+  if (!CF_ACCESS_TEAM_DOMAIN || !CF_ACCESS_AUD) return null;
+  const jwt = extractCfJwt(req);
+  if (!jwt) return null;
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const header = JSON.parse(Buffer.from(b64urlDecode(parts[0])).toString("utf8")) as { alg?: string; kid?: string };
+    const payload = JSON.parse(Buffer.from(b64urlDecode(parts[1])).toString("utf8")) as {
+      aud?: string | string[];
+      iss?: string;
+      exp?: number;
+      nbf?: number;
+      email?: string;
+    };
+    if (header.alg !== "RS256" || !header.kid) return null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (typeof payload.exp !== "number" || payload.exp <= nowSec) return null;
+    if (typeof payload.nbf === "number" && payload.nbf > nowSec + 60) return null;
+    if (payload.iss !== CF_ACCESS_TEAM_DOMAIN) return null;
+    const audList = Array.isArray(payload.aud) ? payload.aud : typeof payload.aud === "string" ? [payload.aud] : [];
+    if (!audList.includes(CF_ACCESS_AUD)) return null;
+
+    let keys = await getCfJwks(false);
+    let jwk = keys.find((k) => k.kid === header.kid);
+    if (!jwk) {
+      keys = await getCfJwks(true);
+      jwk = keys.find((k) => k.kid === header.kid);
+    }
+    if (!jwk) return null;
+    const key = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const sig = b64urlDecode(parts[2]);
+    const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, sig, data);
+    if (!valid) return null;
+    return typeof payload.email === "string" && payload.email ? payload.email : "cf-access";
+  } catch {
+    return null;
+  }
+}
+
 // --- HTTP Server ---
 
 async function route(req: Request, url: URL): Promise<Response> {
@@ -694,8 +781,12 @@ async function route(req: Request, url: URL): Promise<Response> {
     const auth = req.headers.get("Authorization") ?? "";
     const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const sse = method === "GET" && (path === "/events" || path === "/api/stream");
-    if (!validToken(bearer) && !(sse && validToken(url.searchParams.get("token") ?? ""))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
+    const tokenOk = validToken(bearer) || (sse && validToken(url.searchParams.get("token") ?? ""));
+    if (!tokenOk) {
+      const cfUser = api ? await verifyCloudflareAccess(req) : null;
+      if (!cfUser) {
+        return Response.json({ error: "unauthorized" }, { status: 401 });
+      }
     }
   }
   if (api && req.headers.has("Origin")) {

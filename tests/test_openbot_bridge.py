@@ -95,8 +95,8 @@ class OpenBotBridgeTests(unittest.TestCase):
 
         def fake_req(url, auth, method, path, body=None, timeout=8.0):
             calls.append((method, path, body))
-            if path == "/api/peers":
-                return {"peers": [{"id": "ujebusm9", "alias": "OpenBot-Mac"}]}
+            if path == "/list-peers":
+                return [{"id": "ujebusm9", "alias": "OpenBot-Mac"}]
             return {"ok": True, "to_id": "fjylcxmj", "to_alias": "OpenBot-Instabox"}
 
         with mock.patch("openbot_bridge._api_request", side_effect=fake_req):

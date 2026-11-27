@@ -403,9 +403,8 @@ def _api_request(
 
 
 def cli_list(broker_url: str, broker_auth: str | None) -> int:
-    payload = _api_request(broker_url, broker_auth, "GET", "/api/peers")
-    peers = payload.get("peers") or []
-    if not peers:
+    peers = _api_request(broker_url, broker_auth, "POST", "/list-peers", {"scope": "machine"})
+    if not isinstance(peers, list) or not peers:
         print("No peers registered.")
         return 0
     for peer in peers:
@@ -427,11 +426,12 @@ def cli_send(
     from_id = self_alias or "cli"
     if self_alias:
         try:
-            peers = _api_request(broker_url, broker_auth, "GET", "/api/peers").get("peers") or []
-            for peer in peers:
-                if (peer.get("alias") or "").lower() == self_alias.lower():
-                    from_id = peer["id"]
-                    break
+            peers = _api_request(broker_url, broker_auth, "POST", "/list-peers", {"scope": "machine"})
+            if isinstance(peers, list):
+                for peer in peers:
+                    if (peer.get("alias") or "").lower() == self_alias.lower():
+                        from_id = peer["id"]
+                        break
         except Exception:
             pass
     result = _api_request(
