@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>peers-bridge · Live Signal Hub</title>
+<style>
+:root{color-scheme:dark;--bg:#090c12;--panel:#0e1420;--card:#131c2b;--border:#263248;--text:#e8eef8;--soft:#a9b8cf;--muted:#7c8da6;--teal:#2dd4bf;--cyan:#38bdf8;--amber:#f59e0b;--rose:#fb7185}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,textarea,select{font:inherit}button,summary{cursor:pointer}button{color:var(--soft);background:#141e2d;border:1px solid var(--border);border-radius:8px;padding:7px 11px;transition:border-color .15s,background .15s}button:hover{border-color:var(--cyan);color:var(--text)}button:disabled{opacity:.45;cursor:wait}:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}.primary{background:#10332f;border-color:#28635a;color:#9bf5e5}.danger{color:var(--rose);border-color:#713746}.active,button[aria-selected=true],button[aria-pressed=true]{color:#a8e8f8;background:#122737;border-color:#31586d}.app{height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr)}.chrome{background:#0b101a;border-bottom:1px solid var(--border);z-index:2}.topline{min-height:65px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 24px}.brand{display:flex;align-items:center;gap:12px}.brandmark{width:29px;height:29px;color:var(--teal)}.brand b{font-size:17px;letter-spacing:-.4px}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:1.7px;text-transform:uppercase}.dot{display:inline-block;width:7px;height:7px;background:var(--teal);border-radius:50%;box-shadow:0 0 10px #2dd4bf66;flex-shrink:0}.dot.off{background:var(--muted);box-shadow:none}.dot.warn{background:var(--amber);box-shadow:0 0 9px #f59e0b44}.group{display:flex;align-items:center;gap:7px}.pills{border:1px solid var(--border);padding:3px;border-radius:10px;background:#0b111b}.pills button{background:transparent;border-color:transparent;padding:5px 13px}.pills button[aria-pressed=true]{background:#142936;border-color:#2c5360;color:#a8eee3}.instruments{display:flex;align-items:center;gap:23px;padding:10px 24px;border-top:1px solid #1b2535;min-height:77px}.lights{display:flex;gap:8px}.light,.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:5px;padding:4px 7px;font:10px ui-monospace,SFMono-Regular,monospace;letter-spacing:.4px;color:var(--soft)}.light strong{font-size:15px;margin-left:4px;color:var(--text)}.light.online{border-color:#234b47}.light.warn,.badge.warn{border-color:#664b24;color:var(--amber)}.badge.ok{color:var(--teal);border-color:#28554d}.dial{display:flex;align-items:center;gap:9px;border-left:1px solid var(--border);padding-left:20px}.dial svg{width:65px;height:49px}.metric-label,.eyebrow{font:10px ui-monospace,SFMono-Regular,monospace;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}.dial strong{font:20px ui-monospace,SFMono-Regular,monospace}.delivery{min-width:125px}.delivery strong{font:17px ui-monospace,SFMono-Regular,monospace;color:var(--teal)}.fuel{height:5px;background:#263248;border-radius:3px;overflow:hidden;margin-top:7px}.fuel span{display:block;height:100%;width:0;background:var(--teal);transition:width .4s}.clients{white-space:nowrap;color:var(--soft);font:11px ui-monospace,SFMono-Regular,monospace}.switches{margin-left:auto;display:flex;gap:12px}.switches .pills button{font-size:10px;padding:4px 8px}.switch-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:0}.canvas{position:relative;overflow:auto;min-height:0;background:radial-gradient(ellipse at 50% 48%,#102c3433,transparent 57%),radial-gradient(#a1b3cc20 .8px,transparent .8px);background-size:auto,22px 22px}.canvas-head{display:flex;justify-content:space-between;gap:12px;padding:25px 28px 0}.canvas-head h1{font-size:20px;font-weight:500;letter-spacing:-.6px;margin:5px 0}.canvas-head p{margin:0;color:var(--muted);font-size:11px}.live-label{color:var(--teal);font:10px ui-monospace,SFMono-Regular,monospace;letter-spacing:1px}.topology{display:block;width:100%;min-height:440px;height:calc(100% - 160px)}.canvas-foot{display:flex;justify-content:space-between;gap:10px;padding:12px 28px;color:var(--muted);font:10px ui-monospace,SFMono-Regular,monospace}.legend{display:flex;gap:15px}.legend span{display:flex;align-items:center;gap:5px}.wire{fill:none;stroke-width:1.4;stroke:#38bdf8;opacity:.35}.wire.offline{stroke:#607089;stroke-dasharray:4 7;opacity:.28}.wire.traffic{stroke:var(--teal);opacity:.75;stroke-width:2}.peer-node{cursor:pointer;outline:none}.peer-node rect{fill:#101a28;stroke:#2b4654;stroke-width:1}.peer-node:hover rect,.peer-node:focus-visible rect{stroke:var(--cyan)}.peer-node.selected rect{stroke:var(--teal);stroke-width:2}.peer-node.offline rect{fill:#0f1520;stroke:#2d3747;stroke-dasharray:4 3}.peer-node text{fill:var(--text);font-family:inherit;font-size:13px}.peer-node .sub{fill:var(--muted);font-size:10px}.hub-ring{fill:none;stroke:var(--teal);stroke-width:1;opacity:.2}.hub-ring.live{animation:breathe 3s ease-in-out infinite}.hub-shell{fill:#0c1b25;stroke:#2b6565;stroke-width:1.5}.hub-title{fill:var(--text);font-size:18px;font-weight:600}.hub-sub{fill:var(--muted);font:10px ui-monospace,monospace}.hub-count{fill:var(--teal);font:24px ui-monospace,monospace}.signal{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round;stroke-dasharray:8 30;filter:drop-shadow(0 0 3px #2dd4bf);animation:packet 1.2s linear infinite}.signal.pulse{stroke-width:5;stroke-dasharray:35 140;opacity:.65;animation-duration:1.8s}.paused *{animation-play-state:paused!important}.notice{margin:12px 24px;padding:9px 12px;border:1px solid #664b24;border-radius:8px;color:#f6c87c;background:#261e10;font-size:12px}.error{color:#ffacba;border-color:#713746;background:#2a1720;white-space:pre-wrap;overflow-wrap:anywhere}.success{color:#91ead7;border-color:#28554d;background:#102922}.inspector{border-left:1px solid var(--border);background:#0c121d;min-height:0;display:flex;flex-direction:column}.inspector-title{display:flex;justify-content:space-between;align-items:center;padding:22px 20px 16px}.inspector-title strong{font-size:13px;font-weight:600}.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 14px;gap:6px}.tabs button{border-radius:7px 7px 0 0;border-color:transparent;background:transparent;flex:1;padding:10px 5px;font-size:11px}.tabs button[aria-selected=true]{background:#13212e;border-color:#294553;border-bottom-color:var(--cyan)}.tab-panel{overflow:auto;padding:18px;flex:1;min-height:0}.tab-panel[hidden],[hidden]{display:none!important}.section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.section-title h2{margin:0;font-size:13px}.section-title small{color:var(--muted);font-size:10px}.form{display:grid;gap:11px;margin:12px 0}.form label{display:grid;gap:5px;font-size:11px;color:var(--soft)}input,select,textarea{width:100%;border:1px solid var(--border);border-radius:7px;background:#090f19;color:var(--text);padding:9px;min-width:0}textarea{resize:vertical;min-height:72px}.form .group>*{flex:1}details{border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:18px}summary{font-size:12px;color:var(--cyan)}.peer-card{padding:12px;border:1px solid #233145;border-radius:10px;background:linear-gradient(150deg,#142031,#101723);margin:9px 0;overflow-wrap:anywhere}.peer-card.selected{border-color:#3c7b77;background:#12272c}.peer-card .select-peer{display:block;width:100%;padding:0;border:0;text-align:left;background:transparent;color:var(--text)}.peer-card header{display:flex;align-items:center;justify-content:space-between;gap:8px}.peer-name{font-weight:600}.peer-id{font:10px ui-monospace,monospace;color:var(--muted);margin:3px 0 9px}.peer-card p{color:var(--soft);font-size:11px;margin:9px 0}.peer-card footer{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.peer-card small{display:block;color:var(--muted);font-size:10px;margin-top:8px}.editor{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:18px}.editor h3{font-size:13px;margin:0}.form-note{font-size:11px;color:var(--muted);margin:0}.inline-status{padding:8px 10px;border-radius:7px;white-space:pre-wrap;overflow-wrap:anywhere;margin:9px 0;font-size:11px;border:1px solid var(--border)}.check{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--soft);margin:12px 0}.check input{width:auto;accent-color:var(--teal)}.flow-filters{position:sticky;top:-18px;background:#0c121d;padding:2px 0 9px;z-index:1}.flow-item{border-left:2px solid #2a5b54;background:#101b27;border-radius:0 8px 8px 0;margin:10px 0;padding:12px;overflow-wrap:anywhere}.flow-item.queued{border-color:var(--amber)}.flow-item header{font-size:11px;color:var(--text);font-weight:600;margin-bottom:8px}.flow-item p{font-size:12px;color:var(--soft);white-space:pre-wrap;margin:8px 0}.flow-item footer{display:flex;align-items:center;gap:6px}.flow-item time{margin-left:auto;color:var(--muted);font-size:10px}.empty{padding:28px 10px;text-align:center;color:var(--muted);font-size:12px}.send-hint{padding:14px;background:#111e2c;border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--soft)}dialog{width:min(420px,calc(100% - 32px));border:1px solid #315268;border-radius:15px;background:#0e1725;color:var(--text);padding:26px;box-shadow:0 20px 100px #0009}dialog::backdrop{background:#03070dc9;backdrop-filter:blur(5px)}dialog h2{font-size:20px;margin:0 0 8px}dialog p{color:var(--soft);font-size:12px}dialog .group{margin-top:14px}dialog .group button{flex:1}@keyframes packet{to{stroke-dashoffset:-76}}@keyframes breathe{50%{opacity:.65;stroke-width:2}}
+@media(min-width:1700px){.topology{min-height:620px}.canvas-head{padding:32px 38px 0}}@media(max-width:1250px){.instruments{gap:14px;padding-left:18px;padding-right:18px}.switches{gap:6px}.light{padding:4px}.dial{padding-left:12px}.topline{gap:10px;padding-left:18px;padding-right:18px}.brand b{font-size:15px}.pills button{padding:5px 10px}}@media(max-width:1050px){.instruments{flex-wrap:wrap}.switches{margin-left:0}.workspace{grid-template-columns:minmax(0,1fr) 350px}.topline{flex-wrap:wrap}.brand{flex:1}.topline>.pills{order:3;width:100%;justify-content:center}.topology{min-height:400px}.canvas-head{padding:20px 18px 0}}@media(max-width:760px){.app{height:auto;min-height:100dvh}.workspace{grid-template-columns:1fr}.canvas{min-height:540px}.topology{height:430px}.inspector{border-left:0;border-top:1px solid var(--border)}.tab-panel{max-height:650px}.topline{padding:12px}.topline .group{gap:4px}.topline button{font-size:11px;padding:6px 8px}.instruments{padding:12px;gap:14px}.delivery{min-width:100px}.canvas-foot{padding:10px 18px}.canvas-head h1{font-size:18px}.lights{gap:5px}}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<header class="chrome">
+ <div class="topline">
+  <div class="brand"><svg class="brandmark" viewBox="0 0 32 32" aria-hidden="true"><path d="M6 9 16 16 26 9M6 23 16 16 26 23M16 3V29" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="16" cy="16" r="4" fill="#090c12" stroke="currentColor"/><circle cx="6" cy="9" r="2" fill="currentColor"/><circle cx="26" cy="23" r="2" fill="currentColor"/></svg><div><b>peers-bridge</b><small>Live Signal Hub</small></div><span class="dot off" id="sseDot" role="status" aria-label="Stream disconnected"></span></div>
+  <nav class="pills group" aria-label="Peer visibility" id="viewFilters"><button type="button" data-filter="all" aria-pressed="true">All</button><button type="button" data-filter="online" aria-pressed="false">Online</button><button type="button" data-filter="offline" aria-pressed="false">Offline</button><button type="button" data-filter="managed" aria-pressed="false">Managed</button></nav>
+  <div class="group"><button type="button" id="newPeer" class="primary">+ New Peer</button><button type="button" id="pause" aria-pressed="false">Pause</button><button type="button" id="tokenButton">Token</button></div>
+ </div>
+ <div class="instruments">
+  <div class="lights"><span class="light online"><i class="dot"></i> ONLINE <strong id="onlineCount">—</strong></span><span class="light"><i class="dot off"></i> OFFLINE <strong id="offlineCount">—</strong></span><span class="light" id="queueLight"><i class="dot off" id="queueDot"></i> QUEUED <strong id="queuedCount">—</strong></span></div>
+  <div class="dial"><svg viewBox="0 0 80 60" role="img" aria-label="Message velocity gauge"><path d="M10 48 A32 32 0 1 1 70 48" fill="none" stroke="#263248" stroke-width="5" stroke-linecap="round"/><path id="velocityArc" d="M10 48 A32 32 0 1 1 70 48" fill="none" stroke="#38bdf8" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/><path id="needle" d="M40 36 L18 44" stroke="#e8eef8" stroke-width="1.5"/><circle cx="40" cy="36" r="3" fill="#38bdf8"/></svg><div><strong id="velocity">—</strong><div class="metric-label">msg/min <span id="gaugeScale">/ 60</span></div></div></div>
+  <div class="delivery"><div class="group"><span class="metric-label">Delivery</span><strong id="deliveryRate">—</strong></div><div class="fuel" role="meter" aria-label="Delivery rate" aria-valuemin="0" aria-valuemax="100" id="deliveryMeter"><span id="deliveryBar"></span></div></div>
+  <span class="clients" id="clients">SSE · — clients</span>
+  <div class="switches"><div><div class="switch-label">Wire routing</div><div class="pills group" id="routing"><button type="button" data-value="bezier" aria-pressed="true">Bezier</button><button type="button" data-value="rounded" aria-pressed="false">Rounded</button></div></div><div><div class="switch-label">Signal motion</div><div class="pills group" id="motion"><button type="button" data-value="packet" aria-pressed="true">Packet</button><button type="button" data-value="pulse" aria-pressed="false">Pulse</button></div></div></div>
+ </div>
+</header>
+<main class="workspace">
+ <section class="canvas" aria-label="Live peer topology">
+  <div class="canvas-head"><div><div class="eyebrow">Network / topology</div><h1>Every peer. One shared signal.</h1><p id="canvasSubtitle">Waiting for the first broker snapshot.</p></div><div><span class="live-label" id="connection">CONNECTING</span><p id="updated">No snapshot yet</p></div></div>
+  <div class="notice error" id="globalError" role="alert" hidden></div>
+  <div class="notice" id="pauseNotice" role="status" hidden>View paused. The stream stays connected; resume to see the latest state.</div>
+  <svg class="topology" id="topology" viewBox="0 0 1000 760" role="group" aria-label="Broker hub and connected peers"></svg>
+  <div class="canvas-foot"><div class="legend"><span><i class="dot"></i> Online</span><span><i class="dot off"></i> Offline</span><span><i class="dot warn"></i> Queued</span></div><span id="visibleCount">0 peers visible</span></div>
+ </section>
+ <aside class="inspector" aria-label="Peer inspector">
+  <div class="inspector-title"><strong>Signal inspector</strong><span class="eyebrow" id="peerTotal">— sessions</span></div>
+  <div class="tabs" role="tablist" aria-label="Inspector tools"><button type="button" role="tab" id="tab-peers" data-tab="peers" aria-selected="true" aria-controls="panel-peers">Peers (CRUD)</button><button type="button" role="tab" id="tab-flow" data-tab="flow" aria-selected="false" aria-controls="panel-flow" tabindex="-1">Live Flow</button><button type="button" role="tab" id="tab-send" data-tab="send" aria-selected="false" aria-controls="panel-send" tabindex="-1">Send</button></div>
+  <section class="tab-panel" id="panel-peers" role="tabpanel" aria-labelledby="tab-peers">
+   <details id="registerDetails"><summary>+ Register Peer</summary><form class="form" id="registerForm"><label>Alias<input name="alias" required maxlength="128" autocomplete="off" placeholder="e.g. build-agent"></label><label>Role<select name="role"><option>peer</option><option>gateway</option><option>cli</option><option>service</option></select></label><label>Summary<textarea name="summary" placeholder="What is this peer working on?"></textarea></label><label>Working directory<input name="cwd" placeholder="/path/to/project"></label><button type="submit" class="primary">Register Peer</button><div class="inline-status" id="registerStatus" role="status" hidden></div></form></details>
+   <div id="editor" class="editor" hidden><div class="section-title"><h3>Edit selected peer</h3><button type="button" id="clearSelection">Clear</button></div><p class="peer-id" id="editId"></p><form class="form" id="editForm"><label>Alias<input name="alias" required maxlength="128" autocomplete="off"></label><label>Role<select name="role"><option>peer</option><option>gateway</option><option>cli</option><option>service</option></select></label><label>Summary<textarea name="summary"></textarea></label><label>Working directory<input name="cwd"></label><div class="group"><button type="submit" class="primary">Save changes</button><button type="button" class="danger" id="deletePeer">Delete</button></div></form><div class="inline-status" id="editStatus" role="status" hidden></div><div id="forceConfirm" hidden><p class="form-note">This peer is online. Force deletion disconnects it and discards its queued messages.</p><div class="group"><button type="button" class="danger" id="forceDelete">Force delete</button><button type="button" id="cancelDelete">Cancel</button></div></div></div>
+   <div class="section-title"><h2>Peer sessions</h2><small id="listCount">0 registered</small></div><div id="peerList"><p class="empty">Waiting for peers…</p></div>
+  </section>
+  <section class="tab-panel" id="panel-flow" role="tabpanel" aria-labelledby="tab-flow" hidden><div class="flow-filters"><label class="form-note" for="flowPeer">Conversation</label><select id="flowPeer"><option value="">All peers</option></select><label class="check"><input type="checkbox" id="undeliveredOnly">Undelivered only</label><p class="form-note">Newest messages first · last 100</p></div><div id="flowList"></div></section>
+  <section class="tab-panel" id="panel-send" role="tabpanel" aria-labelledby="tab-send" hidden><div class="section-title"><h2>Direct conversation</h2><span class="badge ok">SYSTEM</span></div><p class="send-hint">Send a message through the Broker Hub. Offline peers receive it in their queue.</p><form class="form" id="sendForm"><label>Recipient<select name="to_id" id="recipient" required><option value="">Choose a peer…</option></select></label><label>Message<textarea name="text" required rows="7" placeholder="Write a message…"></textarea></label><button type="submit" class="primary" id="sendButton" disabled>Send Message</button></form><div id="sendStatus" class="inline-status" role="status" hidden></div></section>
+ </aside>
+</main>
+</div>
+<dialog id="tokenDialog" aria-labelledby="tokenTitle"><h2 id="tokenTitle">Connect to your hub</h2><p id="tokenDescription">Enter the hub token. It is saved in this browser and used for authenticated requests.</p><form id="tokenForm" class="form"><label>Hub token<input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="HUB_TOKEN"></label><div class="inline-status error" id="tokenError" role="alert" hidden></div><button type="submit" class="primary">Save &amp; connect</button></form><div class="group"><button type="button" id="clearToken">Clear token</button><button type="button" id="closeToken">Cancel</button></div></dialog>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+// Untrusted strings enter text nodes or form values only, never markup or selectors.
+const text = value => value == null ? '' : String(value);
+const num = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
+function el(tag, className, content) { const node = document.createElement(tag); if (className) node.className = className; if (content != null) node.textContent = text(content); return node; }
+function svg(tag, attrs = {}, content) { const node = document.createElementNS(NS, tag); for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, text(value)); if (content != null) node.textContent = text(content); return node; }
+function status(id, message, kind = 'error') { const node = $(id); node.textContent = text(message); node.hidden = !message; node.classList.toggle('error', kind === 'error'); node.classList.toggle('success', kind === 'success'); }
+function relative(value) { const ms = Date.parse(value); if (!Number.isFinite(ms)) return 'Never seen'; const seconds = Math.max(0, Math.floor((Date.now() - ms) / 1000)); return seconds < 60 ? seconds + 's ago' : seconds < 3600 ? Math.floor(seconds / 60) + 'm ago' : seconds < 86400 ? Math.floor(seconds / 3600) + 'h ago' : Math.floor(seconds / 86400) + 'd ago'; }
+const online = peer => peer.status === 'online';
+const managed = peer => peer.managed === true || peer.managed === 1;
+const delivered = message => message.delivered === true || message.delivered === 1;
+let token = ''; try { token = localStorage.getItem('peers_bridge.token') || ''; } catch { status('globalError', 'Browser storage is unavailable. Tokens will be kept only for this page session.'); }
+let latest = null, displayed = null, source = null, generation = 0, paused = false, live = false;
+let selected = '', filter = 'all', routing = 'bezier', motion = 'packet', tab = 'peers';
+let paths = new Map(), signalLayer = null, deferredPulses = [], probing = false;
+const peers = () => displayed ? displayed.peers : [];
+function filtered() { return peers().filter(peer => filter === 'all' || (filter === 'online' && online(peer)) || (filter === 'offline' && !online(peer)) || (filter === 'managed' && managed(peer))); }
+function normalize(data) { if (!data || typeof data !== 'object' || !Array.isArray(data.peers)) throw new Error('Invalid broker snapshot'); return {...data, peers: data.peers.filter(p => p && typeof p.id === 'string'), recent_messages: Array.isArray(data.recent_messages) ? data.recent_messages.filter(m => m && typeof m === 'object') : [], topology_edges: Array.isArray(data.topology_edges) ? data.topology_edges.filter(e => e && typeof e === 'object') : []}; }
+function setConnection(connected, label) { live = connected; $('sseDot').classList.toggle('off', !connected); $('sseDot').setAttribute('aria-label', connected ? 'Stream connected' : 'Stream disconnected'); $('connection').textContent = label || (connected ? 'LIVE STREAM' : 'RECONNECTING'); const ring = $('hubRing'); if (ring) ring.classList.toggle('live', live); }
+function openToken(required = false) { $('tokenInput').value = ''; status('tokenError', ''); $('tokenDescription').textContent = required ? 'This hub requires a valid token. Enter it to reconnect.' : 'Update your hub token, or clear it to use an unauthenticated local hub.'; if (!$('tokenDialog').open) $('tokenDialog').showModal(); $('tokenInput').focus(); }
+class ApiError extends Error { constructor(code, body) { super('HTTP ' + code + ' · ' + text(body.message || body.error || 'Request failed')); this.status = code; this.code = body.error; } }
+async function api(path, options = {}, epoch = generation) {
+ const requestToken = token;
+ const response = await fetch(path, {...options, cache: 'no-store', headers: {...(requestToken ? {Authorization: 'Bearer ' + requestToken} : {}), ...(options.body ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
+ if (epoch !== generation) throw new Error('Connection changed. Please retry.');
+ let body = {}; try { body = await response.json(); } catch { if (response.ok) throw new Error('The hub returned an invalid JSON response.'); }
+ if (!response.ok) { if (response.status === 401) { if (source) source.close(); source = null; setConnection(false, 'TOKEN REQUIRED'); openToken(true); } throw new ApiError(response.status, body || {}); }
+ return body;
+}
+function accept(data) { latest = normalize(data); if (!paused) { displayed = latest; render(); } }
+async function refresh(epoch = generation) { const snapshot = await api('/api/snapshot', {}, epoch); if (epoch === generation) accept(snapshot); }
+async function bootstrap() {
+ const epoch = ++generation;
+ if (source) source.close(); source = null; setConnection(false, 'CONNECTING');
+ try { await refresh(epoch); if (epoch !== generation) return; status('globalError', ''); connect(epoch); } catch (error) { if (epoch !== generation) return; setConnection(false, error.status === 401 ? 'TOKEN REQUIRED' : 'UNAVAILABLE'); status('globalError', error.message); }
+}
+function connect(epoch) {
+ const stream = new EventSource('/api/stream' + (token ? '?token=' + encodeURIComponent(token) : '')); source = stream;
+ stream.onopen = () => { if (epoch !== generation || source !== stream) return; setConnection(true); status('globalError', ''); refresh(epoch).catch(error => { if (epoch === generation) status('globalError', error.message); }); };
+ stream.addEventListener('snapshot', event => { if (epoch !== generation || source !== stream) return; try { accept(JSON.parse(event.data)); status('globalError', ''); } catch { status('globalError', 'Could not read a broker snapshot. Waiting for the next update.'); } });
+ stream.addEventListener('message', event => { if (epoch !== generation || source !== stream) return; try { const message = JSON.parse(event.data); if (!message || typeof message !== 'object') return; if (paused) deferredPulses = [...deferredPulses.slice(-49), message]; else { pulse(message); if (displayed) { const messages = displayed.recent_messages; if (message.id == null || !messages.some(m => m.id === message.id)) displayed = {...displayed, recent_messages: [message, ...messages].slice(0,100)}; renderFlow(); } } } catch { status('globalError', 'Could not read a live message event.'); } });
+ stream.onerror = async () => { if (epoch !== generation || source !== stream) return; setConnection(false); if (probing) return; probing = true; try { await refresh(epoch); } catch (error) { if (epoch === generation) status('globalError', error.message); } finally { probing = false; } };
+}
+function setTab(name) { tab = name; for (const button of document.querySelectorAll('[data-tab]')) { const active = button.dataset.tab === name; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; $('panel-' + button.dataset.tab).hidden = !active; } }
+function selectPeer(id) { selected = id; $('forceConfirm').hidden = true; status('editStatus', ''); fillEditor(); $('flowPeer').value = id; if ([...$('recipient').options].some(option => option.value === id)) $('recipient').value = id; renderPeers(); renderTopology(); renderFlow(); setTab('peers'); }
+function fillEditor() { const peer = peers().find(p => p.id === selected); $('editor').hidden = !peer; if (!peer) return; $('editId').textContent = peer.id; for (const name of ['alias','role','summary','cwd']) $('editForm').elements.namedItem(name).value = text(peer[name] || (name === 'role' ? 'peer' : '')); }
+function render() {
+ const data = displayed; if (!data) return;
+ if (selected && !peers().some(p => p.id === selected)) { selected = ''; fillEditor(); $('forceConfirm').hidden = true; }
+ const stats = data.stats || {}, hub = data.hub || {};
+ const on = peers().filter(online).length, off = peers().length - on;
+ const queued = stats.messages_undelivered == null ? peers().reduce((sum,p) => sum + num(p.undelivered_count),0) : num(stats.messages_undelivered);
+ $('onlineCount').textContent = on; $('offlineCount').textContent = off; $('queuedCount').textContent = queued;
+ $('queueLight').classList.toggle('warn', queued > 0); $('queueDot').className = queued > 0 ? 'dot warn' : 'dot off';
+ const velocity = num(stats.msg_per_min), scale = Math.max(60, Math.ceil(velocity / 60) * 60), ratio = velocity / scale;
+ $('velocity').textContent = velocity.toLocaleString(undefined,{maximumFractionDigits:1}); $('gaugeScale').textContent = '/ ' + scale;
+ $('velocityArc').setAttribute('stroke-dasharray', (ratio * 100) + ' 100');
+ const angle = (160 + ratio * 220) * Math.PI / 180;
+ $('needle').setAttribute('d', 'M40 36 L' + (40 + Math.cos(angle)*25) + ' ' + (36 + Math.sin(angle)*25));
+ const rate = stats.delivery_rate == null ? null : Math.min(100, num(stats.delivery_rate));
+ $('deliveryRate').textContent = rate == null ? '—' : rate.toFixed(1) + '%'; $('deliveryBar').style.width = (rate || 0) + '%';
+ if (rate == null) $('deliveryMeter').removeAttribute('aria-valuenow'); else $('deliveryMeter').setAttribute('aria-valuenow', rate);
+ $('clients').textContent = 'SSE · ' + (num(hub.sse_peer_clients) + num(hub.sse_dashboard_clients)) + ' clients';
+ $('peerTotal').textContent = peers().length + ' sessions'; $('canvasSubtitle').textContent = text(hub.remote ? 'Remote hub' : 'Local hub') + ' · PORT ' + text(hub.port ?? '—') + ' · select a peer to inspect';
+ $('updated').textContent = 'Updated ' + relative(data.ts);
+ renderOptions(); renderPeers(); renderFlow(); renderTopology();
+}
+function renderOptions() {
+ for (const [id, placeholder] of [['recipient','Choose a peer…'],['flowPeer','All peers']]) {
+  const select = $(id), previous = select.value; const options = [el('option','',placeholder)]; options[0].value = '';
+  for (const peer of peers()) { const option = el('option','',text(peer.alias || peer.id) + ' · ' + (online(peer) ? 'online' : 'offline')); option.value = peer.id; options.push(option); }
+  select.replaceChildren(...options); if (options.some(option => option.value === previous)) select.value = previous;
+ }
+ $('sendButton').disabled = peers().length === 0;
+}
+function renderPeers() {
+ const list = $('peerList'); list.replaceChildren(); const visible = filtered(); $('listCount').textContent = visible.length + ' of ' + peers().length;
+ if (!visible.length) { list.append(el('p','empty',displayed ? 'No peers match this view. Register a peer to get started.' : 'Waiting for peers…')); return; }
+ for (const peer of visible) {
+  const card = el('article','peer-card' + (peer.id === selected ? ' selected' : ''));
+  const button = el('button','select-peer'); button.type = 'button'; button.setAttribute('aria-label', 'Inspect ' + text(peer.alias || peer.id)); button.addEventListener('click',() => selectPeer(peer.id));
+  const head = el('header'), name = el('span','peer-name',peer.alias || peer.id), dot = el('i',online(peer) ? 'dot' : 'dot off'); head.append(name,dot);
+  button.append(head,el('div','peer-id',peer.id)); card.append(button);
+  const badges = el('footer'); badges.append(el('span','badge',peer.role || 'peer'),el('span',online(peer) ? 'badge ok' : 'badge',online(peer) ? 'online' : 'offline'));
+  if (managed(peer)) badges.append(el('span','badge','managed'));
+  badges.append(el('span',num(peer.undelivered_count) ? 'badge warn' : 'badge', num(peer.undelivered_count) + ' queued')); card.append(badges);
+  if (peer.summary) card.append(el('p','',peer.summary)); if (peer.cwd) card.append(el('small','',peer.cwd));
+  const seen = el('small','','Last seen · ' + relative(peer.last_seen)); seen.title = text(peer.last_seen); card.append(seen); list.append(card);
+ }
+}
+function renderFlow() {
+ const list = $('flowList'), panel = $('panel-flow'), top = panel.scrollTop; list.replaceChildren();
+ const peerId = $('flowPeer').value, undelivered = $('undeliveredOnly').checked;
+ const messages = (displayed ? displayed.recent_messages : []).filter(m => (!peerId || m.from_id === peerId || m.to_id === peerId) && (!undelivered || !delivered(m))).slice().sort((a,b) => (Date.parse(b.sent_at)||0) - (Date.parse(a.sent_at)||0));
+ if (!messages.length) list.append(el('p','empty','No messages match this conversation.'));
+ for (const message of messages) {
+  const item = el('article','flow-item' + (delivered(message) ? '' : ' queued'));
+  item.append(el('header','',text(message.from_alias || message.from_id || 'System') + ' → ' + text(message.to_alias || message.to_id || 'Unknown peer')),el('p','',message.text));
+  const footer = el('footer'), time = el('time','',relative(message.sent_at)); time.title = text(message.sent_at); footer.append(el('span',delivered(message) ? 'badge ok' : 'badge warn',delivered(message) ? 'delivered' : 'queued'),el('span','badge',message.from_kind || 'peer'),time); item.append(footer); list.append(item);
+ }
+ panel.scrollTop = top;
+}
+function renderTopology() {
+ const root = $('topology'), visible = filtered(), count = visible.length;
+ const transientSignals = signalLayer ? [...signalLayer.querySelectorAll('.transient-signal')] : [];
+ // Expand the view box rather than overlapping cards as session count grows.
+ const radius = Math.max(285, count * 185 / (2*Math.PI)), size = radius * 2 + 250, center = size/2;
+ root.setAttribute('viewBox','0 0 ' + size + ' ' + size); root.replaceChildren(); paths = new Map();
+ root.append(svg('circle',{cx:center,cy:center,r:radius,fill:'none',stroke:'#22384b','stroke-dasharray':'2 12',opacity:'.6'}));
+ const wires = svg('g'), flow = svg('g'), nodes = svg('g'); signalLayer = flow; flow.append(...transientSignals); root.append(wires,flow,nodes);
+ const active = new Set(); for (const edge of displayed ? displayed.topology_edges : []) { const age = Date.now() - Date.parse(edge.last_sent_at); if (num(edge.count) && age >= 0 && age < 60000) { active.add(edge.from_id); active.add(edge.to_id); } }
+ visible.forEach((peer,index) => {
+  const angle = -Math.PI/2 + index * 2*Math.PI/Math.max(1,count), x = center + Math.cos(angle)*radius, y = center + Math.sin(angle)*radius;
+  const dx = x-center, dy = y-center;
+  const d = routing === 'bezier' ? 'M '+x+' '+y+' C '+(x-dx*.2)+' '+(y-dy*.6)+' '+(center+dx*.3)+' '+(center+dy*.15)+' '+center+' '+center : 'M '+x+' '+y+' L '+x+' '+(center + dy*.25)+' Q '+x+' '+center+' '+(x-dx*.25)+' '+center+' L '+center+' '+center;
+  paths.set(peer.id,{x,y,d,center}); const isActive = active.has(peer.id);
+  wires.append(svg('path',{d,class:'wire' + (!online(peer) ? ' offline' : '') + (isActive ? ' traffic' : '')}));
+  if (isActive) flow.append(svg('path',{d,class:'signal' + (motion === 'pulse' ? ' pulse' : '')}));
+  const group = svg('g',{class:'peer-node' + (!online(peer) ? ' offline' : '') + (peer.id === selected ? ' selected' : ''),transform:'translate('+x+' '+y+')',role:'button',tabindex:'0','aria-label':'Inspect '+text(peer.alias || peer.id)});
+  group.append(svg('title',{},text(peer.alias || peer.id) + ' · ' + text(peer.id)),svg('rect',{x:-83,y:-35,width:166,height:70,rx:11}),svg('circle',{cx:-65,cy:-12,r:3.5,fill:online(peer)?'#2dd4bf':'#687790'}),svg('text',{x:-53,y:-8},text(peer.alias || peer.id).slice(0,16)),svg('text',{x:-65,y:12,class:'sub'},text(peer.role || 'peer') + ' · ' + (online(peer)?'online':'offline')),svg('text',{x:-65,y:26,class:'sub'},text(peer.id).slice(0,22)));
+  if (num(peer.undelivered_count)) { group.append(svg('rect',{x:47,y:-45,width:42,height:20,rx:7,style:'fill:#382810;stroke:#806025'}),svg('text',{x:68,y:-31,'text-anchor':'middle',style:'fill:#f59e0b;font-size:10px'},Math.min(num(peer.undelivered_count),999))); }
+  group.addEventListener('click',() => selectPeer(peer.id)); group.addEventListener('keydown',event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPeer(peer.id); } }); nodes.append(group);
+ });
+ const hub = displayed ? displayed.hub || {} : {}, stats = displayed ? displayed.stats || {} : {};
+ root.append(svg('circle',{cx:center,cy:center,r:99,class:'hub-ring' + (live ? ' live' : ''),id:'hubRing'}),svg('circle',{cx:center,cy:center,r:88,class:'hub-shell'}),svg('circle',{cx:center,cy:center,r:78,fill:'none',stroke:'#233e4b'}),svg('text',{x:center,y:center-28,'text-anchor':'middle',class:'hub-sub'},'PORT '+text(hub.port ?? '—')+' / '+(hub.remote ? 'REMOTE' : 'LOCAL')),svg('text',{x:center,y:center-2,'text-anchor':'middle',class:'hub-title'},'Broker Hub'),svg('text',{x:center,y:center+28,'text-anchor':'middle',class:'hub-count'},num(stats.messages_total).toLocaleString()),svg('text',{x:center,y:center+48,'text-anchor':'middle',class:'hub-sub'},'TOTAL MESSAGES'));
+ if (!count) root.append(svg('text',{x:center,y:center+155,'text-anchor':'middle',class:'hub-sub'},displayed ? 'No peers in this view' : 'Waiting for the broker…'));
+ $('visibleCount').textContent = count + ' peers visible';
+ if (paused && root.pauseAnimations) root.pauseAnimations();
+}
+function pulse(message) {
+ if (paused) { deferredPulses = [...deferredPulses.slice(-49),message]; return; }
+ if (!signalLayer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+ // Paths contain numeric geometry only. No peer-provided identifier enters a URL.
+ const from = paths.get(message.from_id), to = paths.get(message.to_id);
+ const segments = [];
+ if (from) segments.push({d:from.d, reverse:false});
+ if (to) segments.push({d:to.d, reverse:true});
+ for (const [index,segment] of segments.entries()) {
+  const group = svg('g',{class:'transient-signal'}); const circle = svg('circle',{r:motion === 'pulse' ? 6 : 3,fill:'#b2fff0',opacity:'.95'});
+  const animation = svg('animateMotion',{path:segment.d,dur:'.85s',begin:'indefinite',fill:'freeze',keyPoints:segment.reverse ? '1;0' : '0;1',keyTimes:'0;1',calcMode:'linear'});
+  circle.append(animation); group.append(circle); signalLayer.append(group);
+  const start = () => { if (group.isConnected) animation.beginElement(); };
+  // Both legs are sequenced source → hub → destination; system messages start at hub.
+  if (index && from) setTimeout(start,850); else start();
+  setTimeout(() => group.remove(),index && from ? 1800 : 950);
+ }
+}
+function formBody(form) { return Object.fromEntries(new FormData(form).entries()); }
+async function submit(form, statusId, task) { const buttons = [...form.querySelectorAll('button')]; buttons.forEach(button => button.disabled = true); status(statusId,''); try { await task(); } catch(error) { status(statusId,error.message); } finally { buttons.forEach(button => button.disabled = false); if (form.id === 'sendForm') $('sendButton').disabled = peers().length === 0; } }
+async function syncAfterMutation(statusId) { try { await refresh(); } catch(error) { status(statusId,'Action saved, but refresh failed: '+error.message); } }
+$('registerForm').addEventListener('submit',event => { event.preventDefault(); const form = event.currentTarget; submit(form,'registerStatus',async () => { await api('/api/peers',{method:'POST',body:JSON.stringify(formBody(form))}); form.reset(); status('registerStatus','Peer registered.','success'); await syncAfterMutation('registerStatus'); }); });
+$('editForm').addEventListener('submit',event => { event.preventDefault(); const id = selected; if (!id) return; const form = event.currentTarget; submit(form,'editStatus',async () => { await api('/api/peers/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(formBody(form))}); status('editStatus','Changes saved.','success'); await syncAfterMutation('editStatus'); }); });
+async function deleteSelected(force) { const id = selected; if (!id) return; const button = force ? $('forceDelete') : $('deletePeer'); button.disabled = true; status('editStatus',''); try { await api('/api/peers/'+encodeURIComponent(id)+(force?'?force=1':''),{method:'DELETE'}); if (selected === id) { selected = ''; fillEditor(); $('forceConfirm').hidden = true; } await syncAfterMutation('globalError'); } catch(error) { status('editStatus',error.message); if (selected === id && error.status === 409 && error.code === 'peer_online') $('forceConfirm').hidden = false; } finally { button.disabled = false; } }
+$('deletePeer').addEventListener('click',() => deleteSelected(false)); $('forceDelete').addEventListener('click',() => deleteSelected(true)); $('cancelDelete').addEventListener('click',() => $('forceConfirm').hidden = true);
+$('sendForm').addEventListener('submit',event => { event.preventDefault(); const form = event.currentTarget, body = formBody(form); if (!body.text.trim()) { status('sendStatus','Enter a message before sending.'); return; } submit(form,'sendStatus',async () => { const result = await api('/api/messages',{method:'POST',body:JSON.stringify(body)}); form.elements.namedItem('text').value = ''; status('sendStatus','Message accepted for '+text(result.to_alias || result.to_id || body.to_id)+'. Delivery is shown in Live Flow.','success'); pulse({from_id:'dashboard',to_id:result.to_id || body.to_id}); await syncAfterMutation('sendStatus'); }); });
+$('newPeer').addEventListener('click',() => { setTab('peers'); $('registerDetails').open = true; $('registerForm').elements.namedItem('alias').focus(); });
+$('clearSelection').addEventListener('click',() => { selected = ''; fillEditor(); $('flowPeer').value = ''; renderPeers(); renderTopology(); renderFlow(); });
+$('pause').addEventListener('click',() => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; $('pause').setAttribute('aria-pressed',String(paused)); $('app').classList.toggle('paused',paused); $('pauseNotice').hidden = !paused; const root = $('topology'); if (paused && root.pauseAnimations) root.pauseAnimations(); if (!paused) { if (root.unpauseAnimations) root.unpauseAnimations(); if (latest) { displayed = latest; render(); } const pending = deferredPulses; deferredPulses = []; pending.forEach(pulse); } });
+for (const button of document.querySelectorAll('[data-tab]')) { button.addEventListener('click',() => setTab(button.dataset.tab)); button.addEventListener('keydown',event => { const tabs = ['peers','flow','send']; if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; event.preventDefault(); const index = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (tabs.indexOf(tab)+(event.key === 'ArrowRight'?1:2))%3; setTab(tabs[index]); $('tab-'+tabs[index]).focus(); }); }
+for (const button of $('viewFilters').querySelectorAll('button')) button.addEventListener('click',() => { filter = button.dataset.filter; for (const candidate of $('viewFilters').querySelectorAll('button')) candidate.setAttribute('aria-pressed',String(candidate === button)); renderPeers(); renderTopology(); });
+for (const id of ['routing','motion']) for (const button of $(id).querySelectorAll('button')) button.addEventListener('click',() => { if (id === 'routing') routing = button.dataset.value; else motion = button.dataset.value; for (const candidate of $(id).querySelectorAll('button')) candidate.setAttribute('aria-pressed',String(candidate === button)); renderTopology(); });
+$('flowPeer').addEventListener('change',renderFlow); $('undeliveredOnly').addEventListener('change',renderFlow);
+$('tokenButton').addEventListener('click',() => openToken()); $('closeToken').addEventListener('click',() => $('tokenDialog').close());
+function saveToken(value) { token = value; try { if (value) localStorage.setItem('peers_bridge.token',value); else localStorage.removeItem('peers_bridge.token'); } catch { status('globalError','Browser storage is unavailable. This token will last only for this page session.'); } $('tokenInput').value = ''; $('tokenDialog').close(); bootstrap(); }
+$('tokenForm').addEventListener('submit',event => { event.preventDefault(); saveToken($('tokenInput').value.trim()); }); $('clearToken').addEventListener('click',() => saveToken(''));
+window.addEventListener('online',() => { if (!source) bootstrap(); });
+window.addEventListener('pagehide',() => { if (source) source.close(); });
+renderTopology(); bootstrap();
+})();
+</script>
+</body>
+</html>
