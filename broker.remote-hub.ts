@@ -10,6 +10,7 @@
  */
 
 import { Database } from "bun:sqlite";
+import { timingSafeEqual } from "node:crypto";
 import type {
   RegisterRequest,
   RegisterResponse,
@@ -76,6 +77,15 @@ if (!hasColumn("peers", "alias")) {
 if (!hasColumn("peers", "alias_key")) {
   db.run("ALTER TABLE peers ADD COLUMN alias_key TEXT");
 }
+for (const [column, definition] of [
+  ["managed", "INTEGER NOT NULL DEFAULT 0"],
+  ["role", "TEXT NOT NULL DEFAULT 'peer'"],
+  ["status", "TEXT NOT NULL DEFAULT 'online'"],
+]) {
+  if (!hasColumn("peers", column)) {
+    db.run(`ALTER TABLE peers ADD COLUMN ${column} ${definition}`);
+  }
+}
 if (!hasColumn("messages", "from_alias")) {
   db.run("ALTER TABLE messages ADD COLUMN from_alias TEXT");
 }
@@ -120,39 +130,34 @@ const migrateAliases = db.transaction(() => {
 });
 migrateAliases();
 
-// Local brokers can validate PIDs directly. A remote hub cannot: peer PIDs
-// belong to other machines, so use heartbeat age instead.
+// Offline managed entries are durable address-book entries, not live processes.
 function cleanStalePeers() {
-  const peers = db.query("SELECT id, pid, last_seen FROM peers").all() as {
-    id: string;
-    pid: number;
-    last_seen: string;
-  }[];
+  const peers = db.query("SELECT * FROM peers").all() as PeerWithAlias[];
+  let changed = false;
   for (const peer of peers) {
+    if (peer.status === "offline") continue;
+    let stale = false;
     if (REMOTE_HUB) {
       const lastSeen = Date.parse(peer.last_seen);
-      if (Number.isFinite(lastSeen) && Date.now() - lastSeen <= STALE_PEER_TIMEOUT_MS) {
-        continue;
+      stale = !Number.isFinite(lastSeen) || Date.now() - lastSeen > STALE_PEER_TIMEOUT_MS;
+    } else if (peer.pid > 0) {
+      try {
+        process.kill(peer.pid, 0);
+      } catch {
+        stale = true;
       }
-      db.run("DELETE FROM peers WHERE id = ?", [peer.id]);
-      db.run("DELETE FROM messages WHERE to_id = ? AND delivered = 0", [peer.id]);
-      continue;
     }
-    try {
-      // Check if process is still alive (signal 0 doesn't kill, just checks)
-      process.kill(peer.pid, 0);
-    } catch {
-      // Process doesn't exist, remove it
-      db.run("DELETE FROM peers WHERE id = ?", [peer.id]);
+    if (!stale) continue;
+    if (peer.managed) {
+      db.run("UPDATE peers SET status = 'offline', pid = 0 WHERE id = ?", [peer.id]);
+    } else {
       db.run("DELETE FROM messages WHERE to_id = ? AND delivered = 0", [peer.id]);
+      db.run("DELETE FROM peers WHERE id = ?", [peer.id]);
     }
+    changed = true;
   }
+  if (changed) broadcastSnapshot();
 }
-
-cleanStalePeers();
-
-// Periodically clean stale peers (every 30s)
-setInterval(cleanStalePeers, 30_000);
 
 // --- Prepared statements ---
 
@@ -178,16 +183,16 @@ const deletePeer = db.prepare(`
 `);
 
 const selectAllPeers = db.prepare(`
-  SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen, alias FROM peers
+  SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen, alias, managed, role, status FROM peers
 `);
 
 const selectPeersByDirectory = db.prepare(`
-  SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen, alias
+  SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen, alias, managed, role, status
   FROM peers WHERE cwd = ?
 `);
 
 const selectPeersByGitRoot = db.prepare(`
-  SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen, alias
+  SELECT id, pid, cwd, git_root, tty, summary, registered_at, last_seen, alias, managed, role, status
   FROM peers WHERE git_root = ?
 `);
 
@@ -216,7 +221,7 @@ function generateId(): string {
     const collision = db
       .query("SELECT id FROM peers WHERE id = ? OR alias_key = ?")
       .get(id, id);
-    if (!collision) {
+    if (!collision && !isRevoked(id)) {
       return id;
     }
   }
@@ -225,7 +230,12 @@ function generateId(): string {
 // --- Request handlers ---
 
 type RegisterWithAliasRequest = RegisterRequest & { logical_name?: string | null };
-type PeerWithAlias = Peer & { alias: string | null };
+type PeerWithAlias = Peer & {
+  alias: string | null;
+  managed: number;
+  role: "peer" | "gateway" | "cli" | "service";
+  status: "online" | "offline";
+};
 type SetAliasRequest = { id: string; alias: string };
 
 class AliasConflictError extends Error {
@@ -236,6 +246,29 @@ class AliasConflictError extends Error {
 
 class AliasValidationError extends Error {}
 class PeerNotFoundError extends Error {}
+class RequestValidationError extends Error {}
+class PeerRevokedError extends Error {}
+
+const ROLES = new Set(["peer", "gateway", "cli", "service"]);
+const revokedPeerIds = new Map<string, number>();
+const REVOKED_TTL_MS = 10 * 60_000;
+
+function isRevoked(id: string): boolean {
+  const now = Date.now();
+  for (const [peerId, revokedAt] of revokedPeerIds) {
+    if (now - revokedAt >= REVOKED_TTL_MS) revokedPeerIds.delete(peerId);
+  }
+  return revokedPeerIds.has(id);
+}
+
+function getPeer(id: string): PeerWithAlias | null {
+  return db.query("SELECT * FROM peers WHERE id = ?").get(id) as PeerWithAlias | null;
+}
+
+function resolvePeer(address: string): PeerWithAlias | null {
+  return getPeer(address) ?? db.query("SELECT * FROM peers WHERE alias_key = ?")
+    .get(aliasKey(address)) as PeerWithAlias | null;
+}
 
 function normalizeAlias(value: unknown): string | null {
   if (value === undefined || value === null) {
@@ -277,22 +310,44 @@ function findAliasConflict(alias: string, excludeId?: string): { id: string } | 
 }
 
 function handleRegister(body: RegisterWithAliasRequest): RegisterResponse & { alias: string | null } {
+  cleanStalePeers();
   const id = generateId();
   const now = new Date().toISOString();
   const alias = normalizeAlias(body.logical_name);
+  const namedPeer = alias ? db.query("SELECT * FROM peers WHERE alias_key = ?")
+    .get(aliasKey(alias)) as PeerWithAlias | null : null;
+  if (namedPeer?.managed && namedPeer.status === "offline") {
+    db.run(`UPDATE peers SET status = 'online', pid = ?, cwd = ?, git_root = ?,
+      tty = ?, summary = ?, last_seen = ? WHERE id = ?`, [
+      body.pid, body.cwd, body.git_root ?? null, body.tty ?? null,
+      body.summary ?? "", now, namedPeer.id,
+    ]);
+    broadcastSnapshot();
+    return { id: namedPeer.id, alias: namedPeer.alias };
+  }
 
   // A remote PID alone is not globally unique, but PID + cwd is sufficient
   // to collapse retries from the same running gateway after a brief broker
   // outage without conflating the current Mac/A1/Proxmox nodes.
-  const existing = REMOTE_HUB
-    ? db.query("SELECT id FROM peers WHERE pid = ? AND cwd = ?").get(body.pid, body.cwd) as { id: string } | null
-    : db.query("SELECT id FROM peers WHERE pid = ?").get(body.pid) as { id: string } | null;
+  const existing = body.pid > 0
+    ? (REMOTE_HUB
+      ? db.query("SELECT * FROM peers WHERE status = 'online' AND pid = ? AND cwd = ?")
+          .get(body.pid, body.cwd)
+      : db.query("SELECT * FROM peers WHERE status = 'online' AND pid = ?").get(body.pid)) as PeerWithAlias | null
+    : null;
   if (alias && findAliasConflict(alias, existing?.id)) {
     throw new AliasConflictError(alias);
   }
-  if (existing) {
-    deletePeer.run(existing.id);
+  if (existing?.managed) {
+    const updatedAlias = alias ?? existing.alias;
+    db.run(`UPDATE peers SET alias = ?, alias_key = ?, cwd = ?, git_root = ?, tty = ?,
+      summary = ?, last_seen = ? WHERE id = ?`, [updatedAlias,
+      updatedAlias ? aliasKey(updatedAlias) : null, body.cwd, body.git_root ?? null,
+      body.tty ?? null, body.summary ?? "", now, existing.id]);
+    broadcastSnapshot();
+    return { id: existing.id, alias: updatedAlias };
   }
+  if (existing) deletePeer.run(existing.id);
 
   insertPeer.run(
     id,
@@ -306,19 +361,23 @@ function handleRegister(body: RegisterWithAliasRequest): RegisterResponse & { al
     alias,
     alias ? aliasKey(alias) : null,
   );
+  broadcastSnapshot();
   return { id, alias };
 }
 
 function handleHeartbeat(body: HeartbeatRequest): { ok: boolean; reregister?: boolean } {
+  if (isRevoked(body.id)) throw new PeerRevokedError();
   const result = updateLastSeen.run(new Date().toISOString(), body.id);
   if (result.changes === 0) {
     return { ok: false, reregister: true };
   }
+  broadcastSnapshot();
   return { ok: true };
 }
 
 function handleSetSummary(body: SetSummaryRequest): void {
   updateSummary.run(body.summary, body.id);
+  broadcastSnapshot();
 }
 
 function handleSetAlias(body: SetAliasRequest): { ok: true; alias: string } {
@@ -334,10 +393,12 @@ function handleSetAlias(body: SetAliasRequest): { ok: true; alias: string } {
     throw new AliasConflictError(alias);
   }
   updateAlias.run(alias, aliasKey(alias), body.id);
+  broadcastSnapshot();
   return { ok: true, alias };
 }
 
 function handleListPeers(body: ListPeersRequest): PeerWithAlias[] {
+  cleanStalePeers();
   let peers: PeerWithAlias[];
 
   switch (body.scope) {
@@ -364,23 +425,7 @@ function handleListPeers(body: ListPeersRequest): PeerWithAlias[] {
     peers = peers.filter((p) => p.id !== body.exclude_id);
   }
 
-  // Remote PIDs cannot be checked from the hub host. Heartbeat expiry is
-  // handled centrally by cleanStalePeers().
-  if (REMOTE_HUB) {
-    return peers;
-  }
-
-  // Verify each local peer's process is still alive.
-  return peers.filter((p) => {
-    try {
-      process.kill(p.pid, 0);
-      return true;
-    } catch {
-      // Clean up dead peer
-      deletePeer.run(p.id);
-      return false;
-    }
-  });
+  return peers;
 }
 
 function handleSendMessage(
@@ -401,7 +446,7 @@ function handleSendMessage(
     return { ok: false, error: `Peer ${body.to_id} not found` };
   }
 
-  insertMessage.run(
+  const inserted = insertMessage.run(
     body.from_id,
     target.id,
     body.text,
@@ -409,86 +454,365 @@ function handleSendMessage(
     sender?.alias ?? null,
     sender ? "peer" : "system",
   );
+  notifyMessage(target.id, Number(inserted.lastInsertRowid));
   return { ok: true, to_id: target.id, to_alias: target.alias };
 }
 
-function handlePollMessages(body: PollMessagesRequest): PollMessagesResponse {
+function handlePollMessages(body: PollMessagesRequest & { mark_delivered?: boolean }): PollMessagesResponse {
   const messages = selectUndelivered.all(body.id) as (Message & { from_alias: string | null })[];
 
-  // Mark them as delivered
-  for (const msg of messages) {
-    markDelivered.run(msg.id);
+  if (body.mark_delivered !== false) {
+    for (const msg of messages) markDelivered.run(msg.id);
+    if (messages.length) broadcastSnapshot();
   }
 
   return { messages };
 }
 
 function handleUnregister(body: { id: string }): void {
-  deletePeer.run(body.id);
+  const peer = getPeer(body.id);
+  if (peer?.managed) {
+    db.run("UPDATE peers SET status = 'offline', pid = 0 WHERE id = ?", [body.id]);
+  } else {
+    deletePeer.run(body.id);
+  }
+  broadcastSnapshot();
+}
+
+// --- Dashboard data and server-sent events ---
+
+type Controller = ReadableStreamDefaultController<Uint8Array>;
+const peerSubscribers = new Map<string, Set<Controller>>();
+const dashboardSubscribers = new Set<Controller>();
+const subscriberCleanup = new Map<Controller, () => void>();
+const encoder = new TextEncoder();
+
+function dashboardPeers() {
+  return db.query(`SELECT p.id, p.alias, p.pid, p.cwd, p.git_root, p.tty, p.summary,
+    p.role, p.managed, p.status, p.registered_at, p.last_seen,
+    (SELECT COUNT(*) FROM messages m WHERE m.to_id = p.id AND m.delivered = 0)
+      AS undelivered_count FROM peers p ORDER BY p.registered_at, p.id`).all() as
+        (PeerWithAlias & { undelivered_count: number })[];
+}
+
+const messageProjection = `SELECT m.id, m.from_id, m.from_alias, m.from_kind,
+  m.to_id, p.alias AS to_alias, m.text, m.sent_at, m.delivered
+  FROM messages m LEFT JOIN peers p ON p.id = m.to_id`;
+
+function snapshot() {
+  const peers = dashboardPeers() as (PeerWithAlias & { undelivered_count: number })[];
+  const counts = db.query(`SELECT COUNT(*) AS total,
+    COALESCE(SUM(CASE WHEN delivered = 0 THEN 1 ELSE 0 END), 0) AS undelivered,
+    COALESCE(SUM(CASE WHEN sent_at >= ? THEN 1 ELSE 0 END), 0) AS per_min
+    FROM messages`).get(new Date(Date.now() - 60_000).toISOString()) as {
+      total: number; undelivered: number; per_min: number;
+    };
+  return {
+    ts: new Date().toISOString(),
+    hub: {
+      remote: REMOTE_HUB, port: PORT,
+      sse_peer_clients: Array.from(peerSubscribers.values()).reduce((n, set) => n + set.size, 0),
+      sse_dashboard_clients: dashboardSubscribers.size,
+      stale_timeout_ms: STALE_PEER_TIMEOUT_MS,
+    },
+    stats: {
+      peers_total: peers.length,
+      peers_online: peers.filter((p) => p.status === "online").length,
+      peers_offline: peers.filter((p) => p.status === "offline").length,
+      messages_total: counts.total, messages_undelivered: counts.undelivered,
+      msg_per_min: counts.per_min,
+      delivery_rate: counts.total ? (counts.total - counts.undelivered) / counts.total : 0,
+    },
+    peers,
+    recent_messages: db.query(`${messageProjection} ORDER BY m.id DESC LIMIT 100`).all(),
+    topology_edges: db.query(`SELECT m.from_id, m.to_id,
+      COALESCE(sender.alias, m.from_alias) AS from_alias, target.alias AS to_alias,
+      COUNT(*) AS count, SUM(CASE WHEN m.delivered = 0 THEN 1 ELSE 0 END) AS undelivered,
+      MAX(m.sent_at) AS last_sent_at FROM messages m
+      LEFT JOIN peers sender ON sender.id = m.from_id
+      LEFT JOIN peers target ON target.id = m.to_id GROUP BY m.from_id, m.to_id`).all(),
+  };
+}
+
+function event(name: string, data: unknown): string {
+  return `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function push(controller: Controller, data: string) {
+  try {
+    controller.enqueue(encoder.encode(data));
+  } catch {
+    subscriberCleanup.get(controller)?.();
+  }
+}
+
+function broadcastSnapshot() {
+  if (!dashboardSubscribers.size) return;
+  const data = event("snapshot", snapshot());
+  for (const controller of dashboardSubscribers) push(controller, data);
+}
+
+function notifyMessage(peerId: string, messageId: number) {
+  const hint = event("wake", { type: "messages", peer_id: peerId });
+  for (const controller of peerSubscribers.get(peerId) ?? []) push(controller, hint);
+  if (dashboardSubscribers.size) {
+    const message = db.query(`${messageProjection} WHERE m.id = ?`).get(messageId);
+    for (const controller of dashboardSubscribers) push(controller, event("message", message));
+  }
+  broadcastSnapshot();
+}
+
+function openStream(req: Request, subscribers: Set<Controller>, initial: () => string,
+  intervalMs: number, onEmpty?: () => void): Response {
+  let cleanup = () => {};
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      subscribers.add(controller);
+      const timer = setInterval(() => push(controller, ": keepalive\n\n"), intervalMs);
+      const abort = () => {
+        cleanup();
+        try { controller.close(); } catch { /* Already cancelled. */ }
+      };
+      cleanup = () => {
+        clearInterval(timer);
+        subscribers.delete(controller);
+        subscriberCleanup.delete(controller);
+        req.signal.removeEventListener("abort", abort);
+        if (!subscribers.size) onEmpty?.();
+      };
+      subscriberCleanup.set(controller, cleanup);
+      req.signal.addEventListener("abort", abort, { once: true });
+      if (req.signal.aborted) abort();
+      else push(controller, initial());
+    },
+    cancel() { cleanup(); },
+  });
+  return new Response(stream, { headers: {
+    "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive",
+  } });
+}
+
+function requiredAlias(value: unknown): string {
+  const alias = normalizeAlias(value);
+  if (!alias) throw new AliasValidationError("Alias is required");
+  return alias;
+}
+
+function validatePeerFields(body: Record<string, unknown>) {
+  if ("role" in body && !ROLES.has(body.role as string)) {
+    throw new RequestValidationError("Invalid role");
+  }
+  for (const field of ["summary", "cwd"]) {
+    if (field in body && typeof body[field] !== "string") {
+      throw new RequestValidationError(`${field} must be a string`);
+    }
+  }
+  if ("managed" in body && body.managed !== 0 && body.managed !== 1 &&
+      body.managed !== false && body.managed !== true) {
+    throw new RequestValidationError("managed must be a boolean or 0/1");
+  }
+}
+
+function createManagedPeer(body: Record<string, unknown>) {
+  const alias = requiredAlias(body.alias);
+  validatePeerFields(body);
+  if (findAliasConflict(alias)) throw new AliasConflictError(alias);
+  const id = generateId();
+  const now = new Date().toISOString();
+  db.run(`INSERT INTO peers (id, alias, alias_key, pid, cwd, summary, role,
+    managed, status, registered_at, last_seen) VALUES (?, ?, ?, 0, ?, ?, ?, 1, 'offline', ?, ?)`,
+    [id, alias, aliasKey(alias), body.cwd as string ?? "", body.summary as string ?? "",
+      body.role as string ?? "peer", now, now]);
+  broadcastSnapshot();
+  return dashboardPeers().find((peer) => peer.id === id);
+}
+
+function patchPeer(id: string, body: Record<string, unknown>) {
+  const peer = getPeer(id);
+  if (!peer) throw new PeerNotFoundError(`Peer ${id} not found`);
+  validatePeerFields(body);
+  const alias = "alias" in body ? requiredAlias(body.alias) : peer.alias;
+  if (alias && findAliasConflict(alias, id)) throw new AliasConflictError(alias);
+  db.run(`UPDATE peers SET alias = ?, alias_key = ?, summary = ?, role = ?, cwd = ?,
+    managed = ? WHERE id = ?`, [alias, alias ? aliasKey(alias) : null,
+    body.summary as string ?? peer.summary, body.role as string ?? peer.role,
+    body.cwd as string ?? peer.cwd, "managed" in body ? Number(body.managed) : peer.managed, id]);
+  broadcastSnapshot();
+  return dashboardPeers().find((candidate) => candidate.id === id);
+}
+
+function removePeer(id: string, force: boolean): Response {
+  const peer = getPeer(id);
+  if (!peer) throw new PeerNotFoundError(`Peer ${id} not found`);
+  if (peer.status === "online" && !force) {
+    return Response.json({ error: "peer_online",
+      message: "Stop peer or pass force=1 to delete an online peer" }, { status: 409 });
+  }
+  revokedPeerIds.set(id, Date.now());
+  for (const controller of peerSubscribers.get(id) ?? []) {
+    push(controller, event("revoked", { reason: "deleted", peer_id: id }));
+    try { controller.close(); } catch { /* Already closed. */ }
+    subscriberCleanup.get(controller)?.();
+  }
+  db.transaction(() => {
+    db.run("DELETE FROM messages WHERE to_id = ? AND delivered = 0", [id]);
+    deletePeer.run(id);
+  })();
+  broadcastSnapshot();
+  return Response.json({ ok: true, id });
+}
+
+function validToken(candidate: string): boolean {
+  const actual = Buffer.from(candidate, "utf8");
+  const expected = Buffer.from(HUB_TOKEN, "utf8");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 // --- HTTP Server ---
 
+async function route(req: Request, url: URL): Promise<Response> {
+  const path = url.pathname;
+  const method = req.method;
+  const api = path.startsWith("/api/");
+  const publicShell = method === "GET" && (path === "/health" || path === "/dashboard");
+  if (HUB_TOKEN && !publicShell) {
+    const auth = req.headers.get("Authorization") ?? "";
+    const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const sse = method === "GET" && (path === "/events" || path === "/api/stream");
+    if (!validToken(bearer) && !(sse && validToken(url.searchParams.get("token") ?? ""))) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+  }
+  if (api && req.headers.has("Origin")) {
+    let sameHost = false;
+    try {
+      sameHost = new URL(req.headers.get("Origin")!).host.toLowerCase() ===
+        req.headers.get("Host")?.toLowerCase();
+    } catch { /* Malformed and opaque origins are rejected. */ }
+    if (!sameHost) return Response.json({ error: "origin_mismatch" }, { status: 403 });
+  }
+  if (api && (method === "POST" || method === "PATCH") &&
+      !req.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
+    return Response.json({ error: "unsupported_media_type" }, { status: 415 });
+  }
+  try {
+    if (method === "GET") {
+      switch (path) {
+        case "/health":
+          return Response.json({ status: "ok", peers: (selectAllPeers.all() as Peer[]).length });
+        case "/dashboard": {
+          const file = Bun.file(new URL("./dashboard.html", import.meta.url));
+          return new Response(await file.exists() ? file : "<!doctype html><html><head><title>Peers Dashboard</title></head><body><h1>Peers Dashboard</h1></body></html>",
+            { headers: { "Content-Type": "text/html; charset=utf-8", "Referrer-Policy": "no-referrer" } });
+        }
+        case "/api/peers":
+          cleanStalePeers();
+          return Response.json({ peers: dashboardPeers() });
+        case "/api/snapshot":
+          cleanStalePeers();
+          return Response.json(snapshot());
+        case "/api/stream":
+          cleanStalePeers();
+          return openStream(req, dashboardSubscribers, () => event("snapshot", snapshot()), 20_000);
+        case "/events": {
+          const id = url.searchParams.get("id") ?? "";
+          if (isRevoked(id)) throw new PeerRevokedError();
+          if (!id || !getPeer(id)) throw new PeerNotFoundError("Peer not found");
+          let subscribers = peerSubscribers.get(id);
+          if (!subscribers) peerSubscribers.set(id, subscribers = new Set());
+          return openStream(req, subscribers, () => ": connected\n\n", 25_000,
+            () => peerSubscribers.delete(id));
+        }
+      }
+      if (!api) return new Response("claude-peers broker");
+    }
+    const peerRoute = /^\/api\/peers\/([^/]+)$/.exec(path);
+    if (method === "DELETE" && peerRoute) {
+      return removePeer(decodeURIComponent(peerRoute[1]), url.searchParams.get("force") === "1");
+    }
+    if (method === "POST" || method === "PATCH") {
+      const body = await req.json();
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        throw new RequestValidationError("Expected a JSON object");
+      }
+      if (method === "PATCH" && peerRoute) {
+        return Response.json(patchPeer(decodeURIComponent(peerRoute[1]), body));
+      }
+      if (method === "POST") switch (path) {
+        case "/api/peers":
+          return Response.json(createManagedPeer(body), { status: 201 });
+        case "/api/messages": {
+          if (typeof body.to_id !== "string" || typeof body.text !== "string") {
+            throw new RequestValidationError("to_id and text must be strings");
+          }
+          const target = resolvePeer(body.to_id);
+          if (!target) throw new PeerNotFoundError("Peer not found");
+          const result = insertMessage.run("dashboard", target.id, body.text,
+            new Date().toISOString(), "Dashboard", "system");
+          const id = Number(result.lastInsertRowid);
+          notifyMessage(target.id, id);
+          return Response.json({ ok: true, id, to_id: target.id, to_alias: target.alias }, { status: 201 });
+        }
+        case "/register":
+          return Response.json(handleRegister(body));
+        case "/heartbeat":
+          return Response.json(handleHeartbeat(body));
+        case "/set-summary":
+          handleSetSummary(body);
+          return Response.json({ ok: true });
+        case "/set-alias":
+          return Response.json(handleSetAlias(body));
+        case "/list-peers":
+          return Response.json(handleListPeers(body));
+        case "/send-message":
+          return Response.json(handleSendMessage(body));
+        case "/poll-messages":
+          return Response.json(handlePollMessages(body));
+        case "/mark-message-delivered":
+          if (!Number.isInteger(body.id) || body.id <= 0) {
+            throw new RequestValidationError("id must be a positive integer");
+          }
+          markDelivered.run(body.id);
+          broadcastSnapshot();
+          return Response.json({ ok: true });
+        case "/unregister":
+          handleUnregister(body);
+          return Response.json({ ok: true });
+      }
+    }
+    return Response.json({ error: "not found" }, { status: 404 });
+  } catch (e) {
+    if (e instanceof PeerRevokedError) return Response.json({ error: "peer_revoked" }, { status: 410 });
+    if (e instanceof AliasConflictError) {
+      return Response.json({ error: "alias_conflict", alias: e.alias }, { status: 409 });
+    }
+    if (e instanceof AliasValidationError) {
+      return Response.json({ error: "invalid_alias", message: e.message }, { status: 400 });
+    }
+    if (e instanceof RequestValidationError || e instanceof SyntaxError) {
+      return Response.json({ error: "invalid_request", message: e.message }, { status: 400 });
+    }
+    if (e instanceof PeerNotFoundError) {
+      return Response.json({ error: "peer_not_found", message: e.message }, { status: 404 });
+    }
+    // Do not include request URLs or request contents in logs or error responses.
+    return Response.json({ error: "internal_error" }, { status: 500 });
+  }
+}
+
+cleanStalePeers();
+setInterval(cleanStalePeers, 30_000);
+
 Bun.serve({
   port: PORT,
   hostname: "127.0.0.1",
+  // SSE streams have their own keepalives; the HTTP idle timeout must not close them.
+  idleTimeout: 0,
   async fetch(req) {
     const url = new URL(req.url);
-    const path = url.pathname;
-    // Shared-secret auth for remote hubs (CLAUDE_PEERS_HUB_TOKEN).
-    // When set, every POST must carry Authorization: Bearer <token>.
-    if (HUB_TOKEN && req.method === "POST") {
-      const auth = req.headers.get("Authorization") || "";
-      if (auth !== `Bearer ${HUB_TOKEN}`) {
-        return new Response("unauthorized", { status: 401 });
-      }
-    }
-
-    if (req.method !== "POST") {
-      if (path === "/health") {
-        return Response.json({ status: "ok", peers: (selectAllPeers.all() as Peer[]).length });
-      }
-      return new Response("claude-peers broker", { status: 200 });
-    }
-
-    try {
-      const body = await req.json();
-
-      switch (path) {
-        case "/register":
-          return Response.json(handleRegister(body as RegisterWithAliasRequest));
-        case "/heartbeat":
-          return Response.json(handleHeartbeat(body as HeartbeatRequest));
-        case "/set-summary":
-          handleSetSummary(body as SetSummaryRequest);
-          return Response.json({ ok: true });
-        case "/set-alias":
-          return Response.json(handleSetAlias(body as SetAliasRequest));
-        case "/list-peers":
-          return Response.json(handleListPeers(body as ListPeersRequest));
-        case "/send-message":
-          return Response.json(handleSendMessage(body as SendMessageRequest));
-        case "/poll-messages":
-          return Response.json(handlePollMessages(body as PollMessagesRequest));
-        case "/unregister":
-          handleUnregister(body as { id: string });
-          return Response.json({ ok: true });
-        default:
-          return Response.json({ error: "not found" }, { status: 404 });
-      }
-    } catch (e) {
-      if (e instanceof AliasConflictError) {
-        return Response.json({ error: "alias_conflict", alias: e.alias }, { status: 409 });
-      }
-      if (e instanceof AliasValidationError) {
-        return Response.json({ error: "invalid_alias", message: e.message }, { status: 400 });
-      }
-      if (e instanceof PeerNotFoundError) {
-        return Response.json({ error: "peer_not_found", message: e.message }, { status: 404 });
-      }
-      const msg = e instanceof Error ? e.message : String(e);
-      return Response.json({ error: msg }, { status: 500 });
-    }
+    const response = await route(req, url);
+    if (url.pathname.startsWith("/api/")) response.headers.set("Cache-Control", "no-store");
+    return response;
   },
 });
 
