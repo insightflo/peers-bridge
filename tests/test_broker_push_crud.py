@@ -152,14 +152,15 @@ class BrokerPushCrudTests(unittest.TestCase):
             {"alias": "Renamed", "role": "service", "summary": "new", "cwd": "/new", "managed": False})
         self.assertEqual(("Renamed", "service", "new", "/new", 0),
                          tuple(updated[k] for k in ("alias", "role", "summary", "cwd", "managed")))
-        for role in ("peer", "gateway", "cli", "service"):
+        for role in ("peer", "openbot", "mac-agent", "service"):
             self.request("PATCH", "/api/peers/" + peer["id"], {"role": role})
         self.request("DELETE", "/api/peers/" + peer["id"])
         self.assertEqual([], self.peers())
         self.request("PATCH", "/api/peers/missing", {}, 404)
         self.request("DELETE", "/api/peers/missing", status=404)
         for body in ({}, {"alias": None}, {"alias": ""}, {"alias": "é"},
-                     {"alias": 4}, {"alias": "Node", "role": "invalid"},
+                     {"alias": 4}, {"alias": "Node", "role": 123},
+                     {"alias": "Node", "role": "x" * 65},
                      {"alias": "Node", "summary": None}, {"alias": "Node", "cwd": 3}):
             self.post("/api/peers", body, 400)
 
@@ -169,7 +170,8 @@ class BrokerPushCrudTests(unittest.TestCase):
         self.post("/api/peers", {"alias": "FIRST"}, 409)
         self.post("/api/peers", {"alias": a["id"]}, 409)
         for patch, status in (({"alias": "first"}, 409), ({"alias": a["id"]}, 409),
-                              ({"alias": None}, 400), ({"role": "admin"}, 400),
+                              ({"alias": None}, 400), ({"role": 999}, 400),
+                              ({"role": "bad\ntag"}, 400),
                               ({"managed": "yes"}, 400), ({"cwd": None}, 400)):
             self.request("PATCH", "/api/peers/" + b["id"], patch, status)
         self.assertEqual(b, next(p for p in self.peers() if p["id"] == b["id"]))

@@ -233,7 +233,7 @@ type RegisterWithAliasRequest = RegisterRequest & { logical_name?: string | null
 type PeerWithAlias = Peer & {
   alias: string | null;
   managed: number;
-  role: "peer" | "gateway" | "cli" | "service";
+  role: string;
   status: "online" | "offline";
 };
 type SetAliasRequest = { id: string; alias: string };
@@ -249,7 +249,7 @@ class PeerNotFoundError extends Error {}
 class RequestValidationError extends Error {}
 class PeerRevokedError extends Error {}
 
-const ROLES = new Set(["peer", "gateway", "cli", "service"]);
+const MAX_TAG_LENGTH = 64;
 const revokedPeerIds = new Map<string, number>();
 const REVOKED_TTL_MS = 10 * 60_000;
 
@@ -598,9 +598,22 @@ function requiredAlias(value: unknown): string {
   return alias;
 }
 
+function normalizeTag(value: unknown, fallback = "peer"): string {
+  if (value === undefined) return fallback;
+  if (typeof value !== "string") {
+    throw new RequestValidationError("Tag must be a string");
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  if (trimmed.length > MAX_TAG_LENGTH || /[\x00-\x1f\x7f]/.test(trimmed)) {
+    throw new RequestValidationError("Tag must be at most 64 printable characters");
+  }
+  return trimmed;
+}
+
 function validatePeerFields(body: Record<string, unknown>) {
-  if ("role" in body && !ROLES.has(body.role as string)) {
-    throw new RequestValidationError("Invalid role");
+  if ("role" in body) {
+    normalizeTag(body.role);
   }
   for (const field of ["summary", "cwd"]) {
     if (field in body && typeof body[field] !== "string") {
@@ -619,10 +632,11 @@ function createManagedPeer(body: Record<string, unknown>) {
   if (findAliasConflict(alias)) throw new AliasConflictError(alias);
   const id = generateId();
   const now = new Date().toISOString();
+  const role = normalizeTag(body.role, "peer");
   db.run(`INSERT INTO peers (id, alias, alias_key, pid, cwd, summary, role,
     managed, status, registered_at, last_seen) VALUES (?, ?, ?, 0, ?, ?, ?, 1, 'offline', ?, ?)`,
     [id, alias, aliasKey(alias), body.cwd as string ?? "", body.summary as string ?? "",
-      body.role as string ?? "peer", now, now]);
+      role, now, now]);
   broadcastSnapshot();
   return dashboardPeers().find((peer) => peer.id === id);
 }
@@ -633,9 +647,10 @@ function patchPeer(id: string, body: Record<string, unknown>) {
   validatePeerFields(body);
   const alias = "alias" in body ? requiredAlias(body.alias) : peer.alias;
   if (alias && findAliasConflict(alias, id)) throw new AliasConflictError(alias);
+  const role = "role" in body ? normalizeTag(body.role, "peer") : peer.role;
   db.run(`UPDATE peers SET alias = ?, alias_key = ?, summary = ?, role = ?, cwd = ?,
     managed = ? WHERE id = ?`, [alias, alias ? aliasKey(alias) : null,
-    body.summary as string ?? peer.summary, body.role as string ?? peer.role,
+    body.summary as string ?? peer.summary, role,
     body.cwd as string ?? peer.cwd, "managed" in body ? Number(body.managed) : peer.managed, id]);
   broadcastSnapshot();
   return dashboardPeers().find((candidate) => candidate.id === id);
