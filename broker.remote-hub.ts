@@ -29,6 +29,7 @@ const DB_PATH = process.env.CLAUDE_PEERS_DB ?? `${process.env.HOME}/.claude-peer
 const HUB_TOKEN = process.env.CLAUDE_PEERS_HUB_TOKEN ?? "";
 const CF_ACCESS_TEAM_DOMAIN = (process.env.CLAUDE_PEERS_CF_ACCESS_TEAM_DOMAIN ?? "").trim().replace(/\/+$/, "");
 const CF_ACCESS_AUD = (process.env.CLAUDE_PEERS_CF_ACCESS_AUD ?? "").trim();
+const CF_ACCESS_JWKS_FILE = (process.env.CLAUDE_PEERS_CF_ACCESS_JWKS_FILE ?? "").trim();
 const REMOTE_HUB = HUB_TOKEN.length > 0;
 const STALE_PEER_TIMEOUT_MS = parseInt(
   process.env.CLAUDE_PEERS_STALE_TIMEOUT_MS ?? "90000",
@@ -713,14 +714,27 @@ async function getCfJwks(forceRefresh = false): Promise<JwkKey[]> {
   if (!forceRefresh && cfJwksCache && now - cfJwksCache.fetchedAt < CF_JWKS_TTL_MS) {
     return cfJwksCache.keys;
   }
-  const resp = await fetch(`${CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`, {
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!resp.ok) throw new Error(`JWKS fetch HTTP ${resp.status}`);
-  const data = await resp.json() as { keys?: JwkKey[] };
-  const keys = Array.isArray(data.keys) ? data.keys : [];
-  cfJwksCache = { keys, fetchedAt: now };
-  return keys;
+  try {
+    const resp = await fetch(`${CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) throw new Error(`JWKS fetch HTTP ${resp.status}`);
+    const data = await resp.json() as { keys?: JwkKey[] };
+    const keys = Array.isArray(data.keys) ? data.keys : [];
+    cfJwksCache = { keys, fetchedAt: now };
+    return keys;
+  } catch (err) {
+    if (CF_ACCESS_JWKS_FILE) {
+      const file = Bun.file(CF_ACCESS_JWKS_FILE);
+      if (await file.exists()) {
+        const data = await file.json() as { keys?: JwkKey[] };
+        const keys = Array.isArray(data.keys) ? data.keys : [];
+        cfJwksCache = { keys, fetchedAt: now };
+        return keys;
+      }
+    }
+    throw err;
+  }
 }
 
 async function verifyCloudflareAccess(req: Request): Promise<string | null> {
