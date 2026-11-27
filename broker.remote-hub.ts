@@ -726,9 +726,15 @@ async function getCfJwks(forceRefresh = false): Promise<JwkKey[]> {
 async function verifyCloudflareAccess(req: Request): Promise<string | null> {
   if (!CF_ACCESS_TEAM_DOMAIN || !CF_ACCESS_AUD) return null;
   const jwt = extractCfJwt(req);
-  if (!jwt) return null;
+  if (!jwt) {
+    console.error("[cf-access] reject: missing_jwt");
+    return null;
+  }
   const parts = jwt.split(".");
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3) {
+    console.error("[cf-access] reject: malformed_jwt");
+    return null;
+  }
   try {
     const header = JSON.parse(Buffer.from(b64urlDecode(parts[0])).toString("utf8")) as { alg?: string; kid?: string };
     const payload = JSON.parse(Buffer.from(b64urlDecode(parts[1])).toString("utf8")) as {
@@ -738,13 +744,29 @@ async function verifyCloudflareAccess(req: Request): Promise<string | null> {
       nbf?: number;
       email?: string;
     };
-    if (header.alg !== "RS256" || !header.kid) return null;
+    if (header.alg !== "RS256" || !header.kid) {
+      console.error("[cf-access] reject: bad_alg_or_kid");
+      return null;
+    }
     const nowSec = Math.floor(Date.now() / 1000);
-    if (typeof payload.exp !== "number" || payload.exp <= nowSec) return null;
-    if (typeof payload.nbf === "number" && payload.nbf > nowSec + 60) return null;
-    if (payload.iss !== CF_ACCESS_TEAM_DOMAIN) return null;
+    if (typeof payload.exp !== "number" || payload.exp <= nowSec) {
+      console.error("[cf-access] reject: expired");
+      return null;
+    }
+    if (typeof payload.nbf === "number" && payload.nbf > nowSec + 60) {
+      console.error("[cf-access] reject: not_before");
+      return null;
+    }
+    const normIss = (payload.iss ?? "").replace(/\/+$/, "");
+    if (normIss !== CF_ACCESS_TEAM_DOMAIN) {
+      console.error("[cf-access] reject: iss_mismatch", normIss);
+      return null;
+    }
     const audList = Array.isArray(payload.aud) ? payload.aud : typeof payload.aud === "string" ? [payload.aud] : [];
-    if (!audList.includes(CF_ACCESS_AUD)) return null;
+    if (!audList.includes(CF_ACCESS_AUD)) {
+      console.error("[cf-access] reject: aud_mismatch");
+      return null;
+    }
 
     let keys = await getCfJwks(false);
     let jwk = keys.find((k) => k.kid === header.kid);
@@ -752,7 +774,10 @@ async function verifyCloudflareAccess(req: Request): Promise<string | null> {
       keys = await getCfJwks(true);
       jwk = keys.find((k) => k.kid === header.kid);
     }
-    if (!jwk) return null;
+    if (!jwk) {
+      console.error("[cf-access] reject: kid_not_found");
+      return null;
+    }
     const key = await crypto.subtle.importKey(
       "jwk",
       jwk,
@@ -763,9 +788,13 @@ async function verifyCloudflareAccess(req: Request): Promise<string | null> {
     const sig = b64urlDecode(parts[2]);
     const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
     const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, sig, data);
-    if (!valid) return null;
+    if (!valid) {
+      console.error("[cf-access] reject: bad_signature");
+      return null;
+    }
     return typeof payload.email === "string" && payload.email ? payload.email : "cf-access";
-  } catch {
+  } catch (err) {
+    console.error("[cf-access] reject: exception", err instanceof Error ? err.message : String(err));
     return null;
   }
 }
@@ -773,7 +802,8 @@ async function verifyCloudflareAccess(req: Request): Promise<string | null> {
 // --- HTTP Server ---
 
 async function route(req: Request, url: URL): Promise<Response> {
-  const path = url.pathname;
+  const rawPath = url.pathname;
+  const path = rawPath.startsWith("/dashboard/api/") ? rawPath.slice("/dashboard".length) : rawPath;
   const method = req.method;
   const api = path.startsWith("/api/");
   const publicShell = method === "GET" && (path === "/health" || path === "/dashboard");

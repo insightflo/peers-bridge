@@ -74,9 +74,11 @@ function normalize(data) { if (!data || typeof data !== 'object' || !Array.isArr
 function setConnection(connected, label) { live = connected; $('sseDot').classList.toggle('off', !connected); $('sseDot').setAttribute('aria-label', connected ? 'Stream connected' : 'Stream disconnected'); $('connection').textContent = label || (connected ? 'LIVE STREAM' : 'RECONNECTING'); const ring = $('hubRing'); if (ring) ring.classList.toggle('live', live); }
 function openToken(required = false) { $('tokenInput').value = ''; status('tokenError', ''); $('tokenDescription').textContent = required ? 'This hub requires a valid token. Enter it to reconnect.' : 'Update your hub token, or clear it to use an unauthenticated local hub.'; if (!$('tokenDialog').open) $('tokenDialog').showModal(); $('tokenInput').focus(); }
 class ApiError extends Error { constructor(code, body) { super('HTTP ' + code + ' · ' + text(body.message || body.error || 'Request failed')); this.status = code; this.code = body.error; } }
+const API_BASE = location.pathname.startsWith('/dashboard') ? '/dashboard/api' : '/api';
 async function api(path, options = {}, epoch = generation) {
  const requestToken = token;
- const response = await fetch(path, {...options, cache: 'no-store', headers: {...(requestToken ? {Authorization: 'Bearer ' + requestToken} : {}), ...(options.body ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
+ const target = path.startsWith('/api/') ? API_BASE + path.slice(4) : path;
+ const response = await fetch(target, {...options, credentials: 'same-origin', cache: 'no-store', headers: {...(requestToken ? {Authorization: 'Bearer ' + requestToken} : {}), ...(options.body ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
  if (epoch !== generation) throw new Error('Connection changed. Please retry.');
  let body = {}; try { body = await response.json(); } catch { if (response.ok) throw new Error('The hub returned an invalid JSON response.'); }
  if (!response.ok) { if (response.status === 401) { if (source) source.close(); source = null; setConnection(false, 'TOKEN REQUIRED'); openToken(true); } throw new ApiError(response.status, body || {}); }
@@ -90,7 +92,7 @@ async function bootstrap() {
  try { await refresh(epoch); if (epoch !== generation) return; status('globalError', ''); connect(epoch); } catch (error) { if (epoch !== generation) return; setConnection(false, error.status === 401 ? 'TOKEN REQUIRED' : 'UNAVAILABLE'); status('globalError', error.message); }
 }
 function connect(epoch) {
- const stream = new EventSource('/api/stream' + (token ? '?token=' + encodeURIComponent(token) : '')); source = stream;
+ const stream = new EventSource(API_BASE + '/stream' + (token ? '?token=' + encodeURIComponent(token) : '')); source = stream;
  stream.onopen = () => { if (epoch !== generation || source !== stream) return; setConnection(true); status('globalError', ''); refresh(epoch).catch(error => { if (epoch === generation) status('globalError', error.message); }); };
  stream.addEventListener('snapshot', event => { if (epoch !== generation || source !== stream) return; try { accept(JSON.parse(event.data)); status('globalError', ''); } catch { status('globalError', 'Could not read a broker snapshot. Waiting for the next update.'); } });
  stream.addEventListener('message', event => { if (epoch !== generation || source !== stream) return; try { const message = JSON.parse(event.data); if (!message || typeof message !== 'object') return; if (paused) deferredPulses = [...deferredPulses.slice(-49), message]; else { pulse(message); if (displayed) { const messages = displayed.recent_messages; if (message.id == null || !messages.some(m => m.id === message.id)) displayed = {...displayed, recent_messages: [message, ...messages].slice(0,100)}; renderFlow(); renderSelectedMessages(); } } } catch { status('globalError', 'Could not read a live message event.'); } });
