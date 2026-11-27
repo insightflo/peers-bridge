@@ -78,6 +78,39 @@ class OpenBotBridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "revoked"):
             daemon.register()
 
+    def test_format_task_includes_reply_command_for_peers(self) -> None:
+        peer_prompt = openbot_bridge._format_task(
+            {
+                "from_id": "fjylcxmj",
+                "from_alias": "OpenBot-Instabox",
+                "from_kind": "peer",
+                "sent_at": "2026-11-27T00:00:00Z",
+                "text": "check status",
+            }
+        )
+        self.assertIn('peers-send "OpenBot-Instabox"', peer_prompt)
+
+    def test_cli_send_resolves_self_peer_id(self) -> None:
+        calls: list[tuple[str, str, dict | None]] = []
+
+        def fake_req(url, auth, method, path, body=None, timeout=8.0):
+            calls.append((method, path, body))
+            if path == "/api/peers":
+                return {"peers": [{"id": "ujebusm9", "alias": "OpenBot-Mac"}]}
+            return {"ok": True, "to_id": "fjylcxmj", "to_alias": "OpenBot-Instabox"}
+
+        with mock.patch("openbot_bridge._api_request", side_effect=fake_req):
+            rc = openbot_bridge.cli_send(
+                "https://peers.example.com",
+                "Bearer secret",
+                "OpenBot-Mac",
+                "OpenBot-Instabox",
+                "hello",
+            )
+        self.assertEqual(0, rc)
+        self.assertEqual("ujebusm9", calls[1][2]["from_id"])
+        self.assertEqual("OpenBot-Instabox", calls[1][2]["to_id"])
+
 
 if __name__ == "__main__":
     unittest.main()

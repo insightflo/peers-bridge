@@ -26,14 +26,51 @@ def _format_task(message: dict[str, Any]) -> str:
     from_kind = str(message.get("from_kind") or "peer")
     sent_at = str(message.get("sent_at") or "")
     text = str(message.get("text") or "")
+    reply_hint = (
+        f'Reply command: peers-send "{from_alias}" "<your reply>"'
+        if from_kind == "peer"
+        else "This message was sent from the dashboard/system."
+    )
     return (
         "[peers-bridge] Incoming peer message\n"
         f"from_alias: {from_alias}\n"
         f"from_id: {from_id}\n"
         f"from_kind: {from_kind}\n"
         f"sent_at: {sent_at}\n\n"
-        f"{text}\n"
+        f"{text}\n\n"
+        f"{reply_hint}\n"
     )
+
+
+def _load_env_defaults() -> None:
+    candidates = []
+    explicit = os.environ.get("PEERS_BRIDGE_ENV_FILE", "").strip()
+    if explicit:
+        candidates.append(Path(explicit))
+    candidates.extend(
+        [
+            Path.home() / ".config" / "peers-bridge" / "openbot-mac.env",
+            Path("/etc/openbot-peers-bridge.env"),
+        ]
+    )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip()
+            if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+                val = val[1:-1]
+            os.environ.setdefault(key, val)
+        break
 
 
 def _default_cli_path() -> str:
@@ -336,10 +373,102 @@ class OpenBotPeersDaemon:
             self.stop()
 
 
-def main() -> int:
+def _api_request(
+    broker_url: str,
+    broker_auth: str | None,
+    method: str,
+    path: str,
+    body: dict[str, Any] | None = None,
+    timeout: float = 8.0,
+) -> dict[str, Any]:
+    headers = {"User-Agent": USER_AGENT}
+    if broker_auth:
+        headers["Authorization"] = broker_auth
+    data = None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        f"{broker_url.rstrip('/')}{path}",
+        data=data,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"broker {path} failed: HTTP {exc.code} {detail}") from exc
+
+
+def cli_list(broker_url: str, broker_auth: str | None) -> int:
+    payload = _api_request(broker_url, broker_auth, "GET", "/api/peers")
+    peers = payload.get("peers") or []
+    if not peers:
+        print("No peers registered.")
+        return 0
+    for peer in peers:
+        alias = peer.get("alias") or peer.get("id")
+        status = peer.get("status") or "unknown"
+        tag = peer.get("role") or "peer"
+        summary = peer.get("summary") or ""
+        print(f"{alias}\t{status}\t[{tag}]\t{summary}")
+    return 0
+
+
+def cli_send(
+    broker_url: str,
+    broker_auth: str | None,
+    self_alias: str,
+    to_id: str,
+    message: str,
+) -> int:
+    from_id = self_alias or "cli"
+    if self_alias:
+        try:
+            peers = _api_request(broker_url, broker_auth, "GET", "/api/peers").get("peers") or []
+            for peer in peers:
+                if (peer.get("alias") or "").lower() == self_alias.lower():
+                    from_id = peer["id"]
+                    break
+        except Exception:
+            pass
+    result = _api_request(
+        broker_url,
+        broker_auth,
+        "POST",
+        "/send-message",
+        {
+            "from_id": from_id,
+            "from_pid": os.getpid(),
+            "to_id": to_id,
+            "text": message,
+        },
+    )
+    if not result.get("ok"):
+        print(json.dumps(result, ensure_ascii=False), file=sys.stderr)
+        return 1
+    target = result.get("to_alias") or result.get("to_id") or to_id
+    print(f"Sent to {target} ({result.get('to_id')})")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    _load_env_defaults()
+    args = list(sys.argv[1:] if argv is None else argv)
     broker_url = os.environ.get("CLAUDE_PEERS_BROKER_URL", "https://peers.insightflo.si").strip()
     broker_auth = os.environ.get("CLAUDE_PEERS_BROKER_AUTH", "").strip() or None
     alias = os.environ.get("CLAUDE_PEERS_NAME", "").strip()
+
+    if args and args[0] == "list":
+        return cli_list(broker_url, broker_auth)
+    if args and args[0] == "send":
+        if len(args) < 3:
+            print("Usage: peers-send <to_alias_or_id> <message>", file=sys.stderr)
+            return 2
+        return cli_send(broker_url, broker_auth, alias, args[1], " ".join(args[2:]))
+
     agent = os.environ.get("OPENBOT_AGENT", "").strip()
     if not alias or not agent:
         print("CLAUDE_PEERS_NAME and OPENBOT_AGENT are required", file=sys.stderr)
