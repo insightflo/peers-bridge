@@ -146,7 +146,8 @@ class BrokerPushCrudTests(unittest.TestCase):
         self.assertEqual("Node", peer["alias"])
         self.assertEqual(0, peer["undelivered_count"])
         expected = {"id", "alias", "pid", "cwd", "git_root", "tty", "summary", "role",
-                    "managed", "status", "registered_at", "last_seen", "undelivered_count"}
+                    "managed", "status", "registered_at", "last_seen", "undelivered_count",
+                    "kind", "host_id", "agent_id", "agents"}
         self.assertEqual(expected, set(self.peers()[0]))
         updated = self.request("PATCH", "/api/peers/" + peer["id"],
             {"alias": "Renamed", "role": "service", "summary": "new", "cwd": "/new", "managed": False})
