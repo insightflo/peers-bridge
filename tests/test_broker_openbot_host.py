@@ -170,6 +170,28 @@ class BrokerOpenBotHostTests(unittest.TestCase):
         self.assertEqual("peer", self.peers()[peer["id"]]["kind"])
         self.assertNotIn("served_peers", self.post("/heartbeat", {"id": peer["id"]}))
 
+    def test_host_adopts_offline_legacy_peer_entry_but_not_vice_versa(self) -> None:
+        # Migration: a machine switches from OPENBOT_AGENT (legacy) mode to host mode
+        # and re-registers under the same alias while its old entry is offline.
+        legacy = self.post("/register", {"pid": LIVE_PID, "logical_name": "Mac", "cwd": "/legacy"})
+        self.assertEqual("peer", self.peers()[legacy["id"]]["kind"])
+        # Still online: the host is refused (one live process per alias).
+        self.post("/register", {"pid": LIVE_PID + 1, "logical_name": "Mac", "cwd": "/host/mac",
+                                "kind": "openbot-host", "agents": AGENTS}, expected_status=409)
+        self.post("/unregister", {"id": legacy["id"]})
+
+        # The realistic leftover is a dashboard-created address-book entry (managed, offline, kind peer).
+        entry = self.post("/api/peers", {"alias": "Mac", "role": "openbot"}, expected_status=201)
+        host_id = self.register_host()
+        self.assertEqual(entry["id"], host_id)  # same id, now a host
+        peers = self.peers()
+        self.assertEqual(("openbot-host", "online"), (peers[host_id]["kind"], peers[host_id]["status"]))
+        self.assertEqual(AGENTS, peers[host_id]["agents"])
+
+        # Reverse: a legacy process cannot adopt an offline host entry (children would be orphaned).
+        self.post("/unregister", {"id": host_id})
+        self.post("/register", {"pid": LIVE_PID, "logical_name": "Mac", "cwd": "/legacy"}, expected_status=409)
+
     def test_dashboard_creates_online_child_of_host(self) -> None:
         host_id = self.register_host()
 

@@ -584,7 +584,12 @@ function handleRegister(body: RegisterWithAliasRequest): RegisterResponse & { al
   const managed = kind === "openbot-host" ? 1 : 0;
   const namedPeer = alias ? db.query("SELECT * FROM peers WHERE alias_key = ?")
     .get(aliasKey(alias)) as PeerWithAlias | null : null;
-  if (namedPeer?.managed && namedPeer.status === "offline" && namedPeer.kind === kind) {
+  // A host may also adopt an offline legacy "peer" entry: that is the migration
+  // path when a machine switches from OPENBOT_AGENT mode to host mode. The
+  // reverse is refused so children are never left without their host.
+  const adoptable = namedPeer?.managed && namedPeer.status === "offline" &&
+    (namedPeer.kind === kind || (namedPeer.kind === "peer" && kind === "openbot-host"));
+  if (adoptable) {
     db.run(`UPDATE peers SET status = 'online', pid = ?, cwd = ?, git_root = ?,
       tty = ?, summary = ?, last_seen = ?, kind = ?, host_id = ?, agent_id = ? WHERE id = ?`, [
       body.pid, body.cwd, body.git_root ?? null, body.tty ?? null,
