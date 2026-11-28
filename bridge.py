@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import atexit
 import json
+import mimetypes
 import os
 import queue
+import re
 import shlex
+import shutil
 import socket
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -30,6 +35,206 @@ DEFAULT_HEARTBEAT_INTERVAL = float(
     os.environ.get("CLAUDE_PEERS_BRIDGE_HEARTBEAT_INTERVAL_SEC", "15.0")
 )
 DEFAULT_SUMMARY = os.environ.get("CLAUDE_PEERS_SUMMARY", "Hermes Agent")
+
+# Attachments are stored on the broker and referenced by id. Received files are
+# cached locally so the agent can open them by path; sent files are uploaded first.
+DEFAULT_ATTACHMENT_DIR = Path.home() / ".peers-bridge" / "attachments"
+DEFAULT_ATTACHMENT_KEEP_HOURS = 168.0
+ATTACHMENT_DOWNLOAD_TIMEOUT_SECONDS = 30.0
+ATTACHMENT_UPLOAD_TIMEOUT_SECONDS = 60.0
+MAX_ATTACHMENTS_PER_MESSAGE = 5
+MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+MAX_ATTACHMENT_NAME_LENGTH = 128
+
+
+def sanitize_attachment_name(raw: str) -> str:
+    """Reduce a broker-supplied attachment name to a safe file basename.
+
+    Path components (both separators) are dropped so `../../x.png` cannot escape
+    the per-message directory; control characters are removed and the length is
+    capped. Never returns an empty string.
+    """
+    name = str(raw or "").replace("\\", "/").rsplit("/", 1)[-1]
+    name = "".join(ch for ch in name if ch.isprintable() and not ch.isspace() or ch == " ")
+    name = name.strip().strip(".")[:MAX_ATTACHMENT_NAME_LENGTH]
+    return name or "attachment"
+
+
+def ensure_private_dir(path: Path) -> None:
+    """Create `path` and any missing parents with mode 0700 (each new level only)."""
+    missing: list[Path] = []
+    current = path.expanduser()
+    while not current.exists():
+        missing.append(current)
+        if current.parent == current:
+            break
+        current = current.parent
+    for directory in reversed(missing):
+        try:
+            os.mkdir(directory, 0o700)
+        except FileExistsError:
+            pass
+
+
+def _http_error_detail(exc: urllib.error.HTTPError) -> str:
+    try:
+        detail = exc.read().decode("utf-8", errors="replace").strip()
+    except Exception:  # body already consumed or unreadable
+        detail = ""
+    try:
+        payload = json.loads(detail)
+        if isinstance(payload, dict):
+            # Broker errors are `{error, message}`; show those instead of raw JSON.
+            detail = ": ".join(
+                str(payload[key]) for key in ("error", "message") if payload.get(key)
+            ) or detail
+    except (ValueError, TypeError):
+        pass
+    return f"HTTP {exc.code} {detail}".strip()
+
+
+def _attachment_error_reason(exc: BaseException) -> str:
+    """Human-readable reason for a failed attachment transfer (never raises)."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return _http_error_detail(exc)
+    if isinstance(exc, urllib.error.URLError):
+        return str(exc.reason or exc)
+    return str(exc) or exc.__class__.__name__
+
+
+def _attachment_headers(broker_auth: str | None, **extra: str) -> dict[str, str]:
+    headers = {"User-Agent": "peers-bridge/1.0"}
+    if broker_auth:
+        headers["Authorization"] = broker_auth
+    headers.update(extra)
+    return headers
+
+
+def download_attachment(
+    broker_url: str,
+    broker_auth: str | None,
+    attachment_id: str,
+    dest_path: Path,
+    timeout: float = ATTACHMENT_DOWNLOAD_TIMEOUT_SECONDS,
+) -> int:
+    """GET `/attachments/:id` from the broker and write it atomically to `dest_path`.
+
+    Returns the number of bytes written. Raises `RuntimeError` on HTTP errors and
+    whatever `urllib` raises on network/timeout failures so callers can mark the
+    attachment as failed without crashing the poll loop.
+    """
+    url = f"{broker_url.rstrip('/')}/attachments/{urllib.parse.quote(str(attachment_id), safe='')}"
+    req = urllib.request.Request(url, headers=_attachment_headers(broker_auth), method="GET")
+    part_path = dest_path.with_name(dest_path.name + ".part")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with open(part_path, "wb") as fh:
+                shutil.copyfileobj(resp, fh)
+                written = fh.tell()
+        if written == 0:
+            raise RuntimeError("broker returned an empty attachment body")
+        os.replace(part_path, dest_path)
+    except BaseException:
+        # Never leave a partial file behind where a later poll could mistake it for a complete one.
+        try:
+            part_path.unlink()
+        except OSError:
+            pass
+        raise
+    return written
+
+
+def _multipart_part(
+    boundary: str,
+    name: str,
+    value: bytes | str,
+    *,
+    filename: str | None = None,
+    content_type: str | None = None,
+) -> bytes:
+    disposition = f'Content-Disposition: form-data; name="{name}"'
+    if filename is not None:
+        disposition += f'; filename="{str(filename).replace(chr(34), chr(39))}"'
+    lines = [f"--{boundary}", disposition]
+    if content_type:
+        lines.append(f"Content-Type: {content_type}")
+    data = value.encode("utf-8") if isinstance(value, str) else value
+    return ("\r\n".join(lines) + "\r\n\r\n").encode("utf-8") + data + b"\r\n"
+
+
+def upload_attachment(
+    broker_url: str,
+    broker_auth: str | None,
+    path: str,
+    from_id: str | None = None,
+    timeout: float = ATTACHMENT_UPLOAD_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """POST a local file to `/attachments` (hand-built multipart, stdlib only).
+
+    Returns the broker's 201 body `{id, name, size, mime, sha256}`. Raises
+    `RuntimeError` when the file is unreadable/empty or the broker rejects it.
+    """
+    src = Path(path)
+    data = src.read_bytes()
+    if not data:
+        raise RuntimeError(f"attachment {src} is empty")
+    name = src.name
+    # Only declare a Content-Type the broker allowlist certainly accepts; otherwise
+    # let the broker infer it from the file extension.
+    guessed, _ = mimetypes.guess_type(name)
+    if guessed is not None and not re.match(r"^(image/|text/|application/(pdf|json)$)", guessed):
+        guessed = None
+    boundary = "----peers-bridge-" + uuid.uuid4().hex
+    body = _multipart_part(boundary, "file", data, filename=name, content_type=guessed)
+    if from_id:
+        body += _multipart_part(boundary, "from_id", str(from_id))
+    body += f"--{boundary}--\r\n".encode("ascii")
+    url = f"{broker_url.rstrip('/')}/attachments"
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers=_attachment_headers(
+            broker_auth, **{"Content-Type": f"multipart/form-data; boundary={boundary}"}
+        ),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise RuntimeError(f"broker /attachments failed: {_http_error_detail(exc)}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"broker /attachments failed: {exc.reason}") from exc
+    if not isinstance(payload, dict) or not payload.get("id"):
+        raise RuntimeError(f"broker /attachments returned no id: {payload}")
+    return payload
+
+
+def cleanup_attachment_dirs(base_dir: Path, keep_hours: float, *, now: float | None = None) -> int:
+    """Delete per-message attachment directories older than `keep_hours`.
+
+    Opportunistic and non-fatal: returns the number of directories removed and
+    swallows individual removal errors. `keep_hours` of 0 removes everything.
+    """
+    if keep_hours < 0 or not base_dir.is_dir():
+        return 0
+    cutoff = (time.time() if now is None else now) - keep_hours * 3600
+    removed = 0
+    try:
+        entries = list(base_dir.iterdir())
+    except OSError:
+        return 0
+    for entry in entries:
+        try:
+            if not entry.is_dir() or entry.is_symlink() or entry.stat().st_mtime > cutoff:
+                continue
+            shutil.rmtree(entry, ignore_errors=True)
+            if not entry.exists():
+                removed += 1
+        except OSError:
+            continue
+    return removed
 
 
 def _resolve_broker():
@@ -191,6 +396,19 @@ class ClaudePeersBridge:
         self._queued_message_ids: set[int] = set()
         # Accepted injections awaiting acknowledgement must never be injected again.
         self._injected_message_ids: set[int] = set()
+        # Local cache of received attachments, one directory per message id.
+        self._attachment_dir = Path(
+            os.environ.get("PEERS_BRIDGE_ATTACHMENT_DIR", "").strip()
+            or DEFAULT_ATTACHMENT_DIR
+        ).expanduser()
+        try:
+            keep_hours = float(
+                os.environ.get("PEERS_BRIDGE_ATTACHMENT_KEEP_HOURS", "").strip()
+                or DEFAULT_ATTACHMENT_KEEP_HOURS
+            )
+        except ValueError:
+            keep_hours = DEFAULT_ATTACHMENT_KEEP_HOURS
+        self._attachment_keep_hours = max(0.0, keep_hours)
         atexit.register(self.stop)
 
     @property
@@ -283,19 +501,87 @@ class ClaudePeersBridge:
             )
         return _json_response({"ok": True, "scope": scope, "peers": payload})
 
-    def send_message(self, to_id: str, message: str) -> str:
+    def send_message(
+        self, to_id: str, message: str, file_paths: list[str] | str | None = None
+    ) -> str:
+        """Send `message` to `to_id`, optionally uploading `file_paths` first.
+
+        Attachment problems (missing/oversized file, too many files, rejected
+        upload) return an error payload instead of raising and never send the
+        message. Broker failures on `/send-message` itself still raise.
+        """
+        paths = self._normalize_file_paths(file_paths)
+        if isinstance(paths, str):
+            return _json_response({"ok": False, "sent": False, "error": paths})
         with self._lock:
             self._ensure_registered()
-            payload = self._post_json(
-                "/send-message",
-                {
-                    "from_id": self._state.peer_id,
-                    "from_pid": os.getpid(),
-                    "to_id": to_id,
-                    "text": message,
-                },
-            )
+            body: dict[str, Any] = {
+                "from_id": self._state.peer_id,
+                "from_pid": os.getpid(),
+                "to_id": to_id,
+                "text": message,
+            }
+            if paths:
+                problem = self._validate_file_paths(paths)
+                if problem:
+                    return _json_response({"ok": False, "sent": False, "error": problem})
+                attachment_ids: list[str] = []
+                for path in paths:
+                    try:
+                        uploaded = upload_attachment(
+                            self._state.broker_url,
+                            self._state.broker_auth,
+                            path,
+                            from_id=self._state.peer_id,
+                        )
+                    except Exception as exc:
+                        return _json_response(
+                            {
+                                "ok": False,
+                                "sent": False,
+                                "error": f"attachment upload failed for {path}: {exc}",
+                            }
+                        )
+                    attachment_ids.append(str(uploaded["id"]))
+                body["attachments"] = attachment_ids
+            payload = self._post_json("/send-message", body)
         return _json_response(payload)
+
+    @staticmethod
+    def _normalize_file_paths(file_paths: list[str] | str | None) -> list[str] | str:
+        if file_paths is None:
+            return []
+        if isinstance(file_paths, str):
+            file_paths = [file_paths]
+        if not isinstance(file_paths, list) or not all(isinstance(p, str) for p in file_paths):
+            return "file_paths must be an array of local file path strings"
+        paths = [p.strip() for p in file_paths if p and p.strip()]
+        if len(paths) > MAX_ATTACHMENTS_PER_MESSAGE:
+            return (
+                f"too many attachments: {len(paths)} given, "
+                f"at most {MAX_ATTACHMENTS_PER_MESSAGE} are allowed"
+            )
+        return paths
+
+    @staticmethod
+    def _validate_file_paths(paths: list[str]) -> str | None:
+        """Return an error string for the first unusable path, or None when all are sendable."""
+        for path in paths:
+            src = Path(path).expanduser()
+            if not src.is_file():
+                return f"attachment not found or not a regular file: {path}"
+            try:
+                size = src.stat().st_size
+            except OSError as exc:
+                return f"attachment {path} is unreadable: {exc}"
+            if size == 0:
+                return f"attachment {path} is empty"
+            if size > MAX_ATTACHMENT_BYTES:
+                return (
+                    f"attachment {path} is {size} bytes; the broker limit is "
+                    f"{MAX_ATTACHMENT_BYTES} bytes ({MAX_ATTACHMENT_BYTES // (1024 * 1024)} MB)"
+                )
+        return None
 
     def check_messages(self) -> str:
         with self._lock:
@@ -483,6 +769,7 @@ class ClaudePeersBridge:
                                     self._format_injected_message(message),
                                     message_id=message.get("id"),
                                 )
+                            self._cleanup_attachments()
                     self._drain_pending_injections()
                 except Exception as exc:
                     failed = True
@@ -721,12 +1008,20 @@ class ClaudePeersBridge:
         from_alias = message.get("from_alias") or from_id
         from_kind = message.get("from_kind", "peer")
         sent_at = message.get("sent_at", "")
+        raw_attachments = message.get("attachments")
+        has_attachments = isinstance(raw_attachments, list) and bool(raw_attachments)
         reply_note = (
             f"If a reply is needed, use the tool `claude_peers_send_message` with to_id=`{from_id}`."
+            + (
+                f" Its optional file_paths parameter attaches up to {MAX_ATTACHMENTS_PER_MESSAGE} "
+                "local files when relevant."
+                if has_attachments
+                else ""
+            )
             if from_kind == "peer"
             else "This sender is marked as system-only. Do not reply through peer messaging."
         )
-        return (
+        text = (
             "[claude-peers] New incoming message\n"
             f"from_alias: {from_alias}\n"
             f"from_id: {from_id}\n"
@@ -735,6 +1030,91 @@ class ClaudePeersBridge:
             f"{message.get('text', '')}\n\n"
             f"{reply_note}"
         )
+        if not has_attachments:
+            return text
+        return text + "\n\n" + self._format_attachment_block(
+            self._download_attachments(message)
+        )
+
+    @staticmethod
+    def _format_attachment_block(attachments: list[dict[str, Any]]) -> str:
+        lines = []
+        for item in attachments:
+            if "error" in item:
+                lines.append(f"- {item['name']}: download failed ({item['error']})")
+            else:
+                lines.append(
+                    f"- {item['path']} ({item['name']}, {item['mime']}, {item['size']} bytes)"
+                )
+        return "Attachments:\n" + "\n".join(lines)
+
+    def _download_attachments(self, message: dict[str, Any]) -> list[dict[str, Any]]:
+        """Fetch the message's attachments into `<attachment_dir>/<msg_id>/<name>`.
+
+        Returns one entry per attachment: `{path, name, mime, size}` on success
+        (or when an identical-size file is already cached) or `{name, error}` when
+        the download failed. Never raises; failures are logged and recorded in
+        `last_error` while the message still gets delivered.
+        """
+        raw = message.get("attachments")
+        if not isinstance(raw, list) or not raw:
+            return []
+        key = sanitize_attachment_name(str(message.get("id") if message.get("id") is not None else "unknown"))
+        try:
+            msg_dir = self._attachment_dir / key
+            ensure_private_dir(msg_dir)
+        except OSError as exc:
+            self._log_attachment_error(f"attachment dir {msg_dir} unavailable: {exc}")
+            return [
+                {"name": sanitize_attachment_name(att.get("name") or "attachment"), "error": str(exc)}
+                for att in raw
+                if isinstance(att, dict)
+            ]
+        results: list[dict[str, Any]] = []
+        for att in raw:
+            if not isinstance(att, dict):
+                continue
+            name = sanitize_attachment_name(att.get("name") or "attachment")
+            size = att.get("size")
+            dest = msg_dir / name
+            if dest.is_file() and (not isinstance(size, int) or dest.stat().st_size == size):
+                results.append(
+                    {
+                        "path": str(dest.resolve()),
+                        "name": name,
+                        "mime": att.get("mime"),
+                        "size": dest.stat().st_size,
+                    }
+                )
+                continue
+            try:
+                written = download_attachment(
+                    self._state.broker_url,
+                    self._state.broker_auth,
+                    str(att.get("id") or ""),
+                    dest,
+                )
+            except Exception as exc:
+                reason = _attachment_error_reason(exc)
+                self._log_attachment_error(f"attachment download failed ({name}): {reason}")
+                results.append({"name": name, "error": reason})
+                continue
+            results.append(
+                {"path": str(dest.resolve()), "name": name, "mime": att.get("mime"), "size": written}
+            )
+        return results
+
+    def _log_attachment_error(self, text: str) -> None:
+        with self._lock:
+            self._state.last_error = text
+        print(f"[claude-peers-bridge] {text}", file=sys.stderr, flush=True)
+
+    def _cleanup_attachments(self) -> None:
+        """Drop cached attachment directories past their retention; never fatal."""
+        try:
+            cleanup_attachment_dirs(self._attachment_dir, self._attachment_keep_hours)
+        except Exception as exc:
+            print(f"[claude-peers-bridge] attachment cleanup failed: {exc}", file=sys.stderr, flush=True)
 
     def _ensure_registered(self, verify_heartbeat: bool = True) -> None:
         with self._lock:

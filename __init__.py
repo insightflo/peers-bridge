@@ -37,7 +37,9 @@ def _handle_list_peers(args, **kwargs):
 
 
 def _handle_send_message(args, **kwargs):
-    return _bridge().send_message(to_id=args["to_id"], message=args["message"])
+    return _bridge().send_message(
+        to_id=args["to_id"], message=args["message"], file_paths=args.get("file_paths")
+    )
 
 
 def _handle_check_messages(args, **kwargs):
@@ -72,7 +74,11 @@ def _cli_handler(args):
     elif command == "list":
         print(bridge.list_peers(scope=args.scope))
     elif command == "send":
-        print(bridge.send_message(to_id=args.to_id, message=" ".join(args.message)))
+        print(
+            bridge.send_message(
+                to_id=args.to_id, message=" ".join(args.message), file_paths=args.files or None
+            )
+        )
     elif command == "summary":
         print(bridge.set_summary(summary=" ".join(args.summary)))
     elif command == "alias":
@@ -99,6 +105,14 @@ def _setup_cli(subparser):
     send_parser = subs.add_parser("send", help="Send a message to a peer id")
     send_parser.add_argument("to_id", help="Target peer id")
     send_parser.add_argument("message", nargs="+", help="Message text")
+    send_parser.add_argument(
+        "--file",
+        "-f",
+        action="append",
+        dest="files",
+        default=[],
+        help="Attach a local file (repeatable, at most 5, max 20 MB each)",
+    )
 
     summary_parser = subs.add_parser("summary", help="Set this peer summary")
     summary_parser.add_argument("summary", nargs="+", help="Summary text")

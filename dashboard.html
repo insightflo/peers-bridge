@@ -8,6 +8,10 @@
 <style>
 :root{color-scheme:dark;--bg:#090c12;--panel:#0e1420;--card:#131c2b;--border:#263248;--text:#e8eef8;--soft:#a9b8cf;--muted:#7c8da6;--teal:#2dd4bf;--cyan:#38bdf8;--amber:#f59e0b;--rose:#fb7185}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,textarea,select{font:inherit}button,summary{cursor:pointer}button{color:var(--soft);background:#141e2d;border:1px solid var(--border);border-radius:8px;padding:7px 11px;transition:border-color .15s,background .15s}button:hover{border-color:var(--cyan);color:var(--text)}button:disabled{opacity:.45;cursor:wait}:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}.primary{background:#10332f;border-color:#28635a;color:#9bf5e5}.danger{color:var(--rose);border-color:#713746}.active,button[aria-selected=true],button[aria-pressed=true]{color:#a8e8f8;background:#122737;border-color:#31586d}.app{height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr)}.chrome{background:#0b101a;border-bottom:1px solid var(--border);z-index:2}.topline{min-height:65px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 24px}.brand{display:flex;align-items:center;gap:12px}.brandmark{width:29px;height:29px;color:var(--teal)}.brand b{font-size:17px;letter-spacing:-.4px}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:1.7px;text-transform:uppercase}.dot{display:inline-block;width:7px;height:7px;background:var(--teal);border-radius:50%;box-shadow:0 0 10px #2dd4bf66;flex-shrink:0}.dot.off{background:var(--muted);box-shadow:none}.dot.warn{background:var(--amber);box-shadow:0 0 9px #f59e0b44}.group{display:flex;align-items:center;gap:7px}.pills{border:1px solid var(--border);padding:3px;border-radius:10px;background:#0b111b}.pills button{background:transparent;border-color:transparent;padding:5px 13px}.pills button[aria-pressed=true]{background:#142936;border-color:#2c5360;color:#a8eee3}.instruments{display:flex;align-items:center;gap:23px;padding:10px 24px;border-top:1px solid #1b2535;min-height:77px}.lights{display:flex;gap:8px}.light,.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:5px;padding:4px 7px;font:10px ui-monospace,SFMono-Regular,monospace;letter-spacing:.4px;color:var(--soft)}.light strong{font-size:15px;margin-left:4px;color:var(--text)}.light.online{border-color:#234b47}.light.warn,.badge.warn{border-color:#664b24;color:var(--amber)}.badge.ok{color:var(--teal);border-color:#28554d}.dial{display:flex;align-items:center;gap:9px;border-left:1px solid var(--border);padding-left:20px}.dial svg{width:65px;height:49px}.metric-label,.eyebrow{font:10px ui-monospace,SFMono-Regular,monospace;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}.dial strong{font:20px ui-monospace,SFMono-Regular,monospace}.delivery{min-width:125px}.delivery strong{font:17px ui-monospace,SFMono-Regular,monospace;color:var(--teal)}.fuel{height:5px;background:#263248;border-radius:3px;overflow:hidden;margin-top:7px}.fuel span{display:block;height:100%;width:0;background:var(--teal);transition:width .4s}.clients{white-space:nowrap;color:var(--soft);font:11px ui-monospace,SFMono-Regular,monospace}.switches{margin-left:auto;display:flex;gap:12px}.switches .pills button{font-size:10px;padding:4px 8px}.switch-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:0}.canvas{position:relative;overflow:auto;min-height:0;background:radial-gradient(ellipse at 50% 48%,#102c3433,transparent 57%),radial-gradient(#a1b3cc20 .8px,transparent .8px);background-size:auto,22px 22px}.canvas-head{display:flex;justify-content:space-between;gap:12px;padding:25px 28px 0}.canvas-head h1{font-size:20px;font-weight:500;letter-spacing:-.6px;margin:5px 0}.canvas-head p{margin:0;color:var(--muted);font-size:11px}.live-label{color:var(--teal);font:10px ui-monospace,SFMono-Regular,monospace;letter-spacing:1px}.topology{display:block;width:100%;min-height:440px;height:calc(100% - 160px)}.canvas-foot{display:flex;justify-content:space-between;gap:10px;padding:12px 28px;color:var(--muted);font:10px ui-monospace,SFMono-Regular,monospace}.legend{display:flex;gap:15px}.legend span{display:flex;align-items:center;gap:5px}.wire{fill:none;stroke-width:1.4;stroke:#38bdf8;opacity:.35}.wire.offline{stroke:#607089;stroke-dasharray:4 7;opacity:.28}.wire.traffic{stroke:var(--teal);opacity:.75;stroke-width:2}.peer-node{cursor:pointer;outline:none}.peer-node rect{fill:#101a28;stroke:#2b4654;stroke-width:1}.peer-node:hover rect,.peer-node:focus-visible rect{stroke:var(--cyan)}.peer-node.selected rect{stroke:var(--teal);stroke-width:2}.peer-node.offline rect{fill:#0f1520;stroke:#2d3747;stroke-dasharray:4 3}.peer-node text{fill:var(--text);font-family:inherit;font-size:13px}.peer-node .sub{fill:var(--muted);font-size:10px}.hub-ring{fill:none;stroke:var(--teal);stroke-width:1;opacity:.2}.hub-ring.live{animation:breathe 3s ease-in-out infinite}.hub-shell{fill:#0c1b25;stroke:#2b6565;stroke-width:1.5}.hub-title{fill:var(--text);font-size:18px;font-weight:600}.hub-sub{fill:var(--muted);font:10px ui-monospace,monospace}.hub-count{fill:var(--teal);font:24px ui-monospace,monospace}.signal{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round;stroke-dasharray:8 30;filter:drop-shadow(0 0 3px #2dd4bf);animation:packet 1.2s linear infinite}.signal.pulse{stroke-width:5;stroke-dasharray:35 140;opacity:.65;animation-duration:1.8s}.paused *{animation-play-state:paused!important}.notice{margin:12px 24px;padding:9px 12px;border:1px solid #664b24;border-radius:8px;color:#f6c87c;background:#261e10;font-size:12px}.error{color:#ffacba;border-color:#713746;background:#2a1720;white-space:pre-wrap;overflow-wrap:anywhere}.success{color:#91ead7;border-color:#28554d;background:#102922}.inspector{border-left:1px solid var(--border);background:#0c121d;min-height:0;display:flex;flex-direction:column}.inspector-title{display:flex;justify-content:space-between;align-items:center;padding:22px 20px 16px}.inspector-title strong{font-size:13px;font-weight:600}.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 14px;gap:6px}.tabs button{border-radius:7px 7px 0 0;border-color:transparent;background:transparent;flex:1;padding:10px 5px;font-size:11px}.tabs button[aria-selected=true]{background:#13212e;border-color:#294553;border-bottom-color:var(--cyan)}.tab-panel{overflow:auto;padding:18px;flex:1;min-height:0}.tab-panel[hidden],[hidden]{display:none!important}.section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.section-title h2{margin:0;font-size:13px}.section-title small{color:var(--muted);font-size:10px}.form{display:grid;gap:11px;margin:12px 0}.form label{display:grid;gap:5px;font-size:11px;color:var(--soft)}input,select,textarea{width:100%;border:1px solid var(--border);border-radius:7px;background:#090f19;color:var(--text);padding:9px;min-width:0}textarea{resize:vertical;min-height:72px}.form .group>*{flex:1}details{border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:18px}summary{font-size:12px;color:var(--cyan)}.peer-card{padding:12px;border:1px solid #233145;border-radius:10px;background:linear-gradient(150deg,#142031,#101723);margin:9px 0;overflow-wrap:anywhere}.peer-card.selected{border-color:#3c7b77;background:#12272c}.peer-card .select-peer{display:block;width:100%;padding:0;border:0;text-align:left;background:transparent;color:var(--text)}.peer-card header{display:flex;align-items:center;justify-content:space-between;gap:8px}.peer-name{font-weight:600}.peer-id{font:10px ui-monospace,monospace;color:var(--muted);margin:3px 0 9px}.peer-card p{color:var(--soft);font-size:11px;margin:9px 0}.peer-card footer{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.peer-card small{display:block;color:var(--muted);font-size:10px;margin-top:8px}.editor{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:18px}.editor h3{font-size:13px;margin:0}.form-note{font-size:11px;color:var(--muted);margin:0}.inline-status{padding:8px 10px;border-radius:7px;white-space:pre-wrap;overflow-wrap:anywhere;margin:9px 0;font-size:11px;border:1px solid var(--border)}.check{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--soft);margin:12px 0}.check input{width:auto;accent-color:var(--teal)}.flow-filters{position:sticky;top:-18px;background:#0c121d;padding:2px 0 9px;z-index:1}.flow-item{border-left:2px solid #2a5b54;background:#101b27;border-radius:0 8px 8px 0;margin:10px 0;padding:12px;overflow-wrap:anywhere}.flow-item.queued{border-color:var(--amber)}.flow-item header{font-size:11px;color:var(--text);font-weight:600;margin-bottom:8px}.flow-item p{font-size:12px;color:var(--soft);white-space:pre-wrap;margin:8px 0}.flow-item footer{display:flex;align-items:center;gap:6px}.flow-item time{margin-left:auto;color:var(--muted);font-size:10px}.empty{padding:28px 10px;text-align:center;color:var(--muted);font-size:12px}.send-hint{padding:14px;background:#111e2c;border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--soft)}dialog{width:min(420px,calc(100% - 32px));border:1px solid #315268;border-radius:15px;background:#0e1725;color:var(--text);padding:26px;box-shadow:0 20px 100px #0009}dialog::backdrop{background:#03070dc9;backdrop-filter:blur(5px)}dialog h2{font-size:20px;margin:0 0 8px}dialog p{color:var(--soft);font-size:12px}dialog .group{margin-top:14px}dialog .group button{flex:1}@keyframes packet{to{stroke-dashoffset:-76}}@keyframes breathe{50%{opacity:.65;stroke-width:2}}
+.badge.host{color:var(--cyan);border-color:#31586d}.badge.openbot{color:#c4b5fd;border-color:#4c3f6b}.peer-card.child{margin-left:18px}.agent-id{font:10px ui-monospace,monospace;color:var(--muted)}
+#openbotFields{display:grid;gap:11px}.form .check{display:flex}.form-note button{font-size:10px;padding:3px 8px;margin-left:6px}.field-label{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--soft)}.field-label button{font-size:10px;padding:3px 8px}.agent-list{display:grid;gap:2px;max-height:190px;overflow:auto;border:1px solid var(--border);border-radius:7px;padding:6px}.agent-list .check{margin:2px 0}.agent-list .empty{padding:12px 6px}.agent-name{flex:1}
+.attachments{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}.attachment{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:7px;padding:4px 8px;font-size:11px;color:var(--cyan);text-decoration:none;overflow-wrap:anywhere}.attachment:hover{border-color:var(--cyan)}.attachment img{width:38px;height:38px;object-fit:cover;border-radius:4px;display:block;flex-shrink:0}
+.install h3{font-size:12px;margin:8px 0 4px}.install code{font:11px ui-monospace,monospace;color:var(--cyan)}.steps{margin:8px 0 0;padding-left:20px;display:grid;gap:12px}.steps li strong{display:block;margin-bottom:4px}.steps li .form-note{margin:6px 0}.code{position:relative;margin:6px 0}.code pre{margin:0;padding:10px 72px 10px 10px;background:#090f19;border:1px solid var(--border);border-radius:7px;overflow:auto;font:11px/1.45 ui-monospace,SFMono-Regular,monospace;white-space:pre;color:var(--text)}.code .copy{position:absolute;top:5px;right:5px;font-size:10px;padding:3px 8px}.code .copy.done{color:var(--teal);border-color:#28554d}.install details.sub{margin:10px 0 0}
 @media(min-width:1700px){.topology{min-height:620px}.canvas-head{padding:32px 38px 0}}@media(max-width:1250px){.instruments{gap:14px;padding-left:18px;padding-right:18px}.switches{gap:6px}.light{padding:4px}.dial{padding-left:12px}.topline{gap:10px;padding-left:18px;padding-right:18px}.brand b{font-size:15px}.pills button{padding:5px 10px}}@media(max-width:1050px){.instruments{flex-wrap:wrap}.switches{margin-left:0}.workspace{grid-template-columns:minmax(0,1fr) 350px}.topline{flex-wrap:wrap}.brand{flex:1}.topline>.pills{order:3;width:100%;justify-content:center}.topology{min-height:400px}.canvas-head{padding:20px 18px 0}}@media(max-width:760px){.app{height:auto;min-height:100dvh}.workspace{grid-template-columns:1fr}.canvas{min-height:540px}.topology{height:430px}.inspector{border-left:0;border-top:1px solid var(--border)}.tab-panel{max-height:650px}.topline{padding:12px}.topline .group{gap:4px}.topline button{font-size:11px;padding:6px 8px}.instruments{padding:12px;gap:14px}.delivery{min-width:100px}.canvas-foot{padding:10px 18px}.canvas-head h1{font-size:18px}.lights{gap:5px}}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -39,12 +43,77 @@
   <div class="inspector-title"><strong>Signal inspector</strong><span class="eyebrow" id="peerTotal">— sessions</span></div>
   <div class="tabs" role="tablist" aria-label="Inspector tools"><button type="button" role="tab" id="tab-peers" data-tab="peers" aria-selected="true" aria-controls="panel-peers">Peers (CRUD)</button><button type="button" role="tab" id="tab-flow" data-tab="flow" aria-selected="false" aria-controls="panel-flow" tabindex="-1">Live Flow</button><button type="button" role="tab" id="tab-send" data-tab="send" aria-selected="false" aria-controls="panel-send" tabindex="-1">Send</button></div>
   <section class="tab-panel" id="panel-peers" role="tabpanel" aria-labelledby="tab-peers">
-   <details id="registerDetails"><summary>+ Register Peer</summary><form class="form" id="registerForm"><label>Alias<input name="alias" required maxlength="64" autocomplete="off" placeholder="e.g. OpenBot-Mac"></label><label>Tag<input name="role" maxlength="64" autocomplete="off" placeholder="e.g. openbot, gateway, mac"></label><label>Summary<textarea name="summary" placeholder="What is this peer working on?"></textarea></label><label>Working directory<input name="cwd" placeholder="/path/to/project"></label><button type="submit" class="primary">Register Peer</button><div class="inline-status" id="registerStatus" role="status" hidden></div></form></details>
-   <div id="editor" class="editor" hidden><div class="section-title"><h3 id="editTitle">Selected peer</h3><button type="button" id="clearSelection">Clear</button></div><p class="peer-id" id="editId"></p><form class="form" id="quickSendForm"><label>Quick send to this peer<textarea name="text" required rows="2" placeholder="Send a message directly to this peer…"></textarea></label><button type="submit" class="primary">Send Message</button><div class="inline-status" id="quickSendStatus" role="status" hidden></div></form><div class="section-title"><h3>Send / Receive</h3><small id="peerMsgCount">0 messages</small></div><div id="peerMsgList"></div><details id="peerSettingsDetails"><summary>Peer settings (Edit / Delete)</summary><form class="form" id="editForm"><label>Alias<input name="alias" required maxlength="64" autocomplete="off"></label><label>Tag<input name="role" maxlength="64" autocomplete="off" placeholder="e.g. openbot, gateway, mac"></label><label>Summary<textarea name="summary"></textarea></label><label>Working directory<input name="cwd"></label><div class="group"><button type="submit" class="primary">Save changes</button><button type="button" class="danger" id="deletePeer">Delete</button></div></form><div class="inline-status" id="editStatus" role="status" hidden></div><div id="forceConfirm" hidden><p class="form-note">This peer is online. Force deletion disconnects it and discards its queued messages.</p><div class="group"><button type="button" class="danger" id="forceDelete">Force delete</button><button type="button" id="cancelDelete">Cancel</button></div></div></details></div>
+   <details id="registerDetails"><summary>+ Register Peer</summary><form class="form" id="registerForm">
+    <label>Kind<select name="kind" id="registerKind"><option value="peer">Peer (address-book entry)</option><option value="openbot">OpenBot agent</option></select></label>
+    <div id="openbotFields" hidden>
+     <label id="hostField">Host<select name="host_id" id="hostSelect"></select></label>
+     <div class="form-note" id="noHost" hidden>No OpenBot host yet. Install the bridge on that machine first (see Install instructions).<button type="button" id="openInstall">Install bridge on a machine</button></div>
+     <div class="field-label"><span>Agents</span><button type="button" id="agentToggle" aria-pressed="false">Select all</button></div>
+     <div id="agentList" class="agent-list"></div>
+     <label>Alias prefix<input name="alias_prefix" id="aliasPrefix" maxlength="64" autocomplete="off" placeholder="Host alias"></label>
+    </div>
+    <label id="aliasField">Alias<input name="alias" required maxlength="64" autocomplete="off" placeholder="e.g. OpenBot-Mac"></label><label>Tag<input name="role" maxlength="64" autocomplete="off" placeholder="e.g. openbot, gateway, mac"></label><label>Summary<textarea name="summary" placeholder="What is this peer working on?"></textarea></label><label id="cwdField">Working directory<input name="cwd" placeholder="/path/to/project"></label><button type="submit" class="primary" id="registerSubmit">Register Peer</button><div class="inline-status" id="registerStatus" role="status" hidden></div></form></details>
+   <details id="installDetails"><summary>Install bridge on a machine</summary><div class="install">
+    <h3>OpenBot host (macOS)</h3>
+    <p class="form-note">One daemon per machine. It reports that machine's OpenBot agents to this hub and runs tasks for the agent peers registered under + Register Peer → Kind: OpenBot agent. <code>openbot_bridge.py</code> has no Python dependencies: python3 and node (for <code>openbot-cli</code>) are enough.</p>
+    <ol class="steps">
+     <li><strong>1 · Get the script</strong><div class="code"><pre><code>git clone https://github.com/insightflo/peers-bridge.git "$HOME/Projects/peers-bridge"</code></pre><button type="button" class="copy">Copy</button></div></li>
+     <li><strong>2 · Env file</strong> <span class="form-note">the daemon reads <code>~/.config/peers-bridge/openbot-mac.env</code> first</span><div class="code"><pre><code>mkdir -p ~/.config/peers-bridge
+cat &gt; ~/.config/peers-bridge/openbot-mac.env &lt;&lt;EOF
+CLAUDE_PEERS_BROKER_URL=<span data-broker></span>
+CLAUDE_PEERS_BROKER_AUTH=&lt;hub token&gt;
+CLAUDE_PEERS_NAME=OpenBot-Mac
+OPENBOT_NODE_BIN=$(command -v node)
+EOF
+chmod 600 ~/.config/peers-bridge/openbot-mac.env</code></pre><button type="button" class="copy">Copy</button></div><p class="form-note"><code>CLAUDE_PEERS_BROKER_AUTH</code> is the hub token (the value behind the Token button) — ask the operator. <code>CLAUDE_PEERS_NAME</code> is the machine alias shown as the host. <code>OPENBOT_NODE_BIN</code> is written as an absolute path because launchd has no shell PATH.</p></li>
+     <li><strong>3 · launchd agent</strong><div class="code"><pre><code>mkdir -p ~/Library/LaunchAgents ~/Library/Logs
+cat &gt; ~/Library/LaunchAgents/com.insightflo.peers-openbot-bridge.plist &lt;&lt;EOF
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;
+&lt;dict&gt;
+&lt;key&gt;Label&lt;/key&gt;&lt;string&gt;com.insightflo.peers-openbot-bridge&lt;/string&gt;
+&lt;key&gt;ProgramArguments&lt;/key&gt;
+&lt;array&gt;
+&lt;string&gt;/usr/bin/env&lt;/string&gt;
+&lt;string&gt;python3&lt;/string&gt;
+&lt;string&gt;$HOME/Projects/peers-bridge/openbot_bridge.py&lt;/string&gt;
+&lt;/array&gt;
+&lt;key&gt;RunAtLoad&lt;/key&gt;&lt;true/&gt;
+&lt;key&gt;KeepAlive&lt;/key&gt;&lt;true/&gt;
+&lt;key&gt;StandardOutPath&lt;/key&gt;&lt;string&gt;$HOME/Library/Logs/openbot-peers-bridge.out.log&lt;/string&gt;
+&lt;key&gt;StandardErrorPath&lt;/key&gt;&lt;string&gt;$HOME/Library/Logs/openbot-peers-bridge.err.log&lt;/string&gt;
+&lt;/dict&gt;
+&lt;/plist&gt;
+EOF</code></pre><button type="button" class="copy">Copy</button></div></li>
+     <li><strong>4 · Load and verify</strong><div class="code"><pre><code>launchctl load ~/Library/LaunchAgents/com.insightflo.peers-openbot-bridge.plist
+tail -n 50 -f ~/Library/Logs/openbot-peers-bridge.err.log</code></pre><button type="button" class="copy">Copy</button></div><p class="form-note">Within about 15 s the machine appears in Peer sessions as online with its agents. Only then can its agents be registered under + Register Peer → Kind: OpenBot agent. After editing the env file reload the agent: <code>launchctl unload &lt;plist&gt; &amp;&amp; launchctl load &lt;plist&gt;</code>.</p></li>
+    </ol>
+    <details class="sub"><summary>Linux (systemd user unit)</summary><p class="form-note">Same env file path (<code>~/.config/peers-bridge/openbot-mac.env</code>) or <code>/etc/openbot-peers-bridge.env</code>, or set <code>PEERS_BRIDGE_ENV_FILE</code> in the unit.</p><div class="code"><pre><code>mkdir -p ~/.config/systemd/user
+cat &gt; ~/.config/systemd/user/peers-openbot-bridge.service &lt;&lt;EOF
+[Unit]
+Description=peers-bridge OpenBot host
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/env python3 $HOME/Projects/peers-bridge/openbot_bridge.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+systemctl --user daemon-reload
+systemctl --user enable --now peers-openbot-bridge
+journalctl --user -u peers-openbot-bridge -n 50 -f</code></pre><button type="button" class="copy">Copy</button></div></details>
+    <h3>Hermes machines</h3>
+    <p class="form-note">Hermes machines run the plugin (<code>bridge.py</code>) instead and register as ordinary peers. Follow the README: §2 Install the plugin, §3 Wire up message reception, §4 Restart and verify. Attachments they receive are downloaded to <code>~/.peers-bridge/attachments</code> and handed to the agent as file paths.</p>
+   </div></details>
+   <div id="editor" class="editor" hidden><div class="section-title"><h3 id="editTitle">Selected peer</h3><button type="button" id="clearSelection">Clear</button></div><p class="peer-id" id="editId"></p><p class="form-note" id="editKind" hidden></p><form class="form" id="quickSendForm"><label>Quick send to this peer<textarea name="text" required rows="2" placeholder="Send a message directly to this peer…"></textarea></label><label>Attachments<input type="file" name="files" multiple></label><p class="form-note">Optional · up to 5 files · 20 MB each.</p><button type="submit" class="primary">Send Message</button><div class="inline-status" id="quickSendStatus" role="status" hidden></div></form><div class="section-title"><h3>Send / Receive</h3><small id="peerMsgCount">0 messages</small></div><div id="peerMsgList"></div><details id="peerSettingsDetails"><summary>Peer settings (Edit / Delete)</summary><form class="form" id="editForm"><label>Alias<input name="alias" required maxlength="64" autocomplete="off"></label><label>Tag<input name="role" maxlength="64" autocomplete="off" placeholder="e.g. openbot, gateway, mac"></label><label>Summary<textarea name="summary"></textarea></label><label>Working directory<input name="cwd"></label><div class="group"><button type="submit" class="primary">Save changes</button><button type="button" class="danger" id="deletePeer">Delete</button></div></form><div class="inline-status" id="editStatus" role="status" hidden></div><p class="form-note" id="hostDeleteNote" hidden></p><div id="forceConfirm" hidden><p class="form-note" id="forceNote">This peer is online. Force deletion disconnects it and discards its queued messages.</p><div class="group"><button type="button" class="danger" id="forceDelete">Force delete</button><button type="button" id="cancelDelete">Cancel</button></div></div></details></div>
    <div class="section-title"><h2>Peer sessions</h2><small id="listCount">0 registered</small></div><div id="peerList"><p class="empty">Waiting for peers…</p></div>
   </section>
   <section class="tab-panel" id="panel-flow" role="tabpanel" aria-labelledby="tab-flow" hidden><div class="flow-filters"><label class="form-note" for="flowPeer">Conversation</label><select id="flowPeer"><option value="">All peers</option></select><label class="check"><input type="checkbox" id="undeliveredOnly">Undelivered only</label><p class="form-note">Newest messages first · last 100</p></div><div id="flowList"></div></section>
-  <section class="tab-panel" id="panel-send" role="tabpanel" aria-labelledby="tab-send" hidden><div class="section-title"><h2>Direct conversation</h2><span class="badge ok">SYSTEM</span></div><p class="send-hint">Send a message through the Broker Hub. Offline peers receive it in their queue.</p><form class="form" id="sendForm"><label>Recipient<select name="to_id" id="recipient" required><option value="">Choose a peer…</option></select></label><label>Message<textarea name="text" required rows="7" placeholder="Write a message…"></textarea></label><button type="submit" class="primary" id="sendButton" disabled>Send Message</button></form><div id="sendStatus" class="inline-status" role="status" hidden></div></section>
+  <section class="tab-panel" id="panel-send" role="tabpanel" aria-labelledby="tab-send" hidden><div class="section-title"><h2>Direct conversation</h2><span class="badge ok">SYSTEM</span></div><p class="send-hint">Send a message through the Broker Hub. Offline peers receive it in their queue.</p><form class="form" id="sendForm"><label>Recipient<select name="to_id" id="recipient" required><option value="">Choose a peer…</option></select></label><label>Message<textarea name="text" required rows="7" placeholder="Write a message…"></textarea></label><label>Attachments<input type="file" name="files" multiple></label><p class="form-note">Optional · up to 5 files · 20 MB each.</p><button type="submit" class="primary" id="sendButton" disabled>Send Message</button></form><div id="sendStatus" class="inline-status" role="status" hidden></div></section>
  </aside>
 </main>
 </div>
@@ -64,21 +133,59 @@ function relative(value) { const ms = Date.parse(value); if (!Number.isFinite(ms
 const online = peer => peer.status === 'online';
 const managed = peer => peer.managed === true || peer.managed === 1;
 const delivered = message => message.delivered === true || message.delivered === 1;
+// Peers without `kind` are ordinary address-book entries; hosts and their agent children keep their relative order.
+const isHost = peer => peer.kind === 'openbot-host';
+const isAgent = peer => peer.kind === 'openbot';
+const agentCount = peer => Array.isArray(peer.agents) ? peer.agents.length : 0;
+function hosts() { return peers().filter(isHost); }
+function orderedPeers() {
+ const children = new Map(), rest = [];
+ for (const peer of peers()) { if (isAgent(peer) && peer.host_id && peers().some(p => p.id === peer.host_id)) { if (!children.has(peer.host_id)) children.set(peer.host_id, []); children.get(peer.host_id).push(peer); } else rest.push(peer); }
+ rest.sort((a,b) => (Date.parse(a.registered_at)||0) - (Date.parse(b.registered_at)||0) || text(a.id).localeCompare(text(b.id)));
+ const out = [];
+ for (const peer of rest) { out.push(peer); if (isHost(peer) && children.has(peer.id)) { out.push(...children.get(peer.id).sort((a,b) => text(a.alias).localeCompare(text(b.alias)))); children.delete(peer.id); } }
+ for (const orphaned of children.values()) out.push(...orphaned);
+ return out;
+}
+const MAX_FILES = 5, MAX_FILE_BYTES = 20 * 1024 * 1024;
+// Downloads accept the SSE-style query token so <a> and <img> work when a hub token is stored; cookie-based hubs need nothing.
+function attachmentUrl(id) { return API_BASE + '/attachments/' + encodeURIComponent(text(id)) + (token ? '?token=' + encodeURIComponent(token) : ''); }
+function fileSize(size) { const n = num(size); return n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB'; }
+function attachmentList(message) {
+ const items = Array.isArray(message.attachments) ? message.attachments.filter(a => a && typeof a.id === 'string') : []; if (!items.length) return null;
+ const wrap = el('div','attachments');
+ for (const item of items) {
+  const link = document.createElement('a'); link.className = 'attachment'; link.href = attachmentUrl(item.id); link.title = text(item.mime || '') + ' · download';
+  if (typeof item.mime === 'string' && item.mime.startsWith('image/')) { const img = document.createElement('img'); img.loading = 'lazy'; img.alt = text(item.name); img.src = link.href; link.append(img); }
+  link.append(document.createTextNode(text(item.name) + ' · ' + fileSize(item.size))); wrap.append(link);
+ }
+ return wrap;
+}
+// Uploads run sequentially so progress can be reported per file; limits are enforced before any request.
+async function uploadFiles(fileList, statusId) {
+ const files = [...fileList];
+ if (files.length > MAX_FILES) throw new Error('Up to ' + MAX_FILES + ' files per message (' + files.length + ' selected).');
+ const oversized = files.filter(file => file.size > MAX_FILE_BYTES); if (oversized.length) throw new Error('File exceeds 20 MB: ' + oversized.map(file => text(file.name)).join(', '));
+ const ids = [];
+ for (const [index, file] of files.entries()) { status(statusId, 'Uploading ' + (index + 1) + '/' + files.length + ' · ' + text(file.name), 'progress'); const data = new FormData(); data.append('file', file); const result = await api('/api/attachments', {method: 'POST', body: data}); ids.push(result.id); }
+ return ids;
+}
+function pickedFiles(form) { const input = form.elements.namedItem('files'); return input && input.files ? [...input.files] : []; }
 let token = ''; try { token = localStorage.getItem('peers_bridge.token') || ''; } catch { status('globalError', 'Browser storage is unavailable. Tokens will be kept only for this page session.'); }
 let latest = null, displayed = null, source = null, generation = 0, paused = false, live = false;
 let selected = '', filter = 'all', routing = 'bezier', motion = 'packet', tab = 'peers';
 let paths = new Map(), signalLayer = null, deferredPulses = [], probing = false;
 const peers = () => displayed ? displayed.peers : [];
-function filtered() { return peers().filter(peer => filter === 'all' || (filter === 'online' && online(peer)) || (filter === 'offline' && !online(peer)) || (filter === 'managed' && managed(peer))); }
+function filtered() { return orderedPeers().filter(peer => filter === 'all' || (filter === 'online' && online(peer)) || (filter === 'offline' && !online(peer)) || (filter === 'managed' && managed(peer))); }
 function normalize(data) { if (!data || typeof data !== 'object' || !Array.isArray(data.peers)) throw new Error('Invalid broker snapshot'); return {...data, peers: data.peers.filter(p => p && typeof p.id === 'string'), recent_messages: Array.isArray(data.recent_messages) ? data.recent_messages.filter(m => m && typeof m === 'object') : [], topology_edges: Array.isArray(data.topology_edges) ? data.topology_edges.filter(e => e && typeof e === 'object') : []}; }
 function setConnection(connected, label) { live = connected; $('sseDot').classList.toggle('off', !connected); $('sseDot').setAttribute('aria-label', connected ? 'Stream connected' : 'Stream disconnected'); $('connection').textContent = label || (connected ? 'LIVE STREAM' : 'RECONNECTING'); const ring = $('hubRing'); if (ring) ring.classList.toggle('live', live); }
 function openToken(required = false) { $('tokenInput').value = ''; status('tokenError', ''); $('tokenDescription').textContent = required ? 'This hub requires a valid token. Enter it to reconnect.' : 'Update your hub token, or clear it to use an unauthenticated local hub.'; if (!$('tokenDialog').open) $('tokenDialog').showModal(); $('tokenInput').focus(); }
-class ApiError extends Error { constructor(code, body) { super('HTTP ' + code + ' · ' + text(body.message || body.error || 'Request failed')); this.status = code; this.code = body.error; } }
+class ApiError extends Error { constructor(code, body) { const detail = body.message || (body.error === 'alias_conflict' && body.alias ? 'Alias already in use: ' + text(body.alias) : body.error) || 'Request failed'; super('HTTP ' + code + ' · ' + text(detail)); this.status = code; this.code = body.error; } }
 const API_BASE = location.pathname.startsWith('/dashboard') ? '/dashboard/api' : '/api';
 async function api(path, options = {}, epoch = generation) {
  const requestToken = token;
  const target = path.startsWith('/api/') ? API_BASE + path.slice(4) : path;
- const response = await fetch(target, {...options, credentials: 'same-origin', cache: 'no-store', headers: {...(requestToken ? {Authorization: 'Bearer ' + requestToken} : {}), ...(options.body ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
+ const response = await fetch(target, {...options, credentials: 'same-origin', cache: 'no-store', headers: {...(requestToken ? {Authorization: 'Bearer ' + requestToken} : {}), ...(options.body && typeof options.body === 'string' ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
  if (epoch !== generation) throw new Error('Connection changed. Please retry.');
  let body = {}; try { body = await response.json(); } catch { if (response.ok) throw new Error('The hub returned an invalid JSON response.'); }
  if (!response.ok) { if (response.status === 401) { if (source) source.close(); source = null; setConnection(false, 'TOKEN REQUIRED'); openToken(true); } throw new ApiError(response.status, body || {}); }
@@ -100,7 +207,13 @@ function connect(epoch) {
 }
 function setTab(name) { tab = name; for (const button of document.querySelectorAll('[data-tab]')) { const active = button.dataset.tab === name; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; $('panel-' + button.dataset.tab).hidden = !active; } }
 function selectPeer(id) { selected = id; $('forceConfirm').hidden = true; status('editStatus', ''); status('quickSendStatus', ''); fillEditor(); $('flowPeer').value = id; if ([...$('recipient').options].some(option => option.value === id)) $('recipient').value = id; renderPeers(); renderTopology(); renderFlow(); renderSelectedMessages(); setTab('peers'); $('panel-peers').scrollTop = 0; }
-function fillEditor() { const peer = peers().find(p => p.id === selected); $('editor').hidden = !peer; if (!peer) return; $('editTitle').textContent = text(peer.alias || peer.id) + ' · ' + (online(peer) ? 'online' : 'offline'); $('editId').textContent = peer.id; for (const name of ['alias','role','summary','cwd']) $('editForm').elements.namedItem(name).value = text(peer[name] || (name === 'role' ? 'peer' : '')); }
+function fillEditor() { const peer = peers().find(p => p.id === selected); $('editor').hidden = !peer; if (!peer) return; $('editTitle').textContent = text(peer.alias || peer.id) + ' · ' + (online(peer) ? 'online' : 'offline'); $('editId').textContent = peer.id; for (const name of ['alias','role','summary','cwd']) $('editForm').elements.namedItem(name).value = text(peer[name] || (name === 'role' ? 'peer' : ''));
+ let kindLine = '', hostNote = '';
+ if (isAgent(peer)) { const host = peers().find(p => p.id === peer.host_id); const agent = host && Array.isArray(host.agents) ? host.agents.find(a => a && a.id === peer.agent_id) : null; kindLine = 'Agent: ' + text(agent ? agent.name || agent.id : peer.agent_id) + ' (' + text(peer.agent_id) + ') · Host: ' + text(host ? host.alias || host.id : peer.host_id || 'unknown'); }
+ else if (isHost(peer)) { kindLine = 'Host · ' + agentCount(peer) + ' agents reported'; const count = peers().filter(p => isAgent(p) && p.host_id === peer.id).length; if (count) hostNote = 'Deleting this host also deletes its ' + count + ' agent peer' + (count === 1 ? '' : 's') + ' registered from it.'; }
+ $('editKind').textContent = kindLine; $('editKind').hidden = !kindLine; $('hostDeleteNote').textContent = hostNote; $('hostDeleteNote').hidden = !hostNote;
+ $('forceNote').textContent = 'This peer is online. Force deletion disconnects it and discards its queued messages.' + (isHost(peer) ? ' Its agent peers are deleted with it.' : '');
+}
 function renderSelectedMessages() {
  const list = $('peerMsgList'); if (!list) return; list.replaceChildren();
  if (!selected) { $('peerMsgCount').textContent = '0 messages'; return; }
@@ -112,6 +225,7 @@ function renderSelectedMessages() {
   const item = el('article','flow-item' + (delivered(message) ? '' : ' queued'));
   const counterpart = isOut ? text(message.to_alias || message.to_id || 'Unknown') : text(message.from_alias || message.from_id || 'System');
   item.append(el('header','',(isOut ? 'OUT → ' : '← IN · ') + counterpart),el('p','',message.text));
+  const files = attachmentList(message); if (files) item.append(files);
   const footer = el('footer'), time = el('time','',relative(message.sent_at)); time.title = text(message.sent_at);
   footer.append(el('span',isOut ? 'badge' : 'badge ok',isOut ? 'sent' : 'received'),el('span',delivered(message) ? 'badge ok' : 'badge warn',delivered(message) ? 'delivered' : 'queued'),time);
   item.append(footer); list.append(item);
@@ -136,12 +250,12 @@ function render() {
  $('clients').textContent = 'SSE · ' + (num(hub.sse_peer_clients) + num(hub.sse_dashboard_clients)) + ' clients';
  $('peerTotal').textContent = peers().length + ' sessions'; $('canvasSubtitle').textContent = text(hub.remote ? 'Remote hub' : 'Local hub') + ' · PORT ' + text(hub.port ?? '—') + ' · select a peer to inspect';
  $('updated').textContent = 'Updated ' + relative(data.ts);
- renderOptions(); renderPeers(); renderFlow(); renderSelectedMessages(); renderTopology();
+ renderOptions(); if (registerKind === 'openbot') renderOpenbotRegister(); renderPeers(); renderFlow(); renderSelectedMessages(); renderTopology();
 }
 function renderOptions() {
  for (const [id, placeholder] of [['recipient','Choose a peer…'],['flowPeer','All peers']]) {
   const select = $(id), previous = select.value; const options = [el('option','',placeholder)]; options[0].value = '';
-  for (const peer of peers()) { const option = el('option','',text(peer.alias || peer.id) + ' · ' + (online(peer) ? 'online' : 'offline')); option.value = peer.id; options.push(option); }
+  for (const peer of orderedPeers()) { const option = el('option','',text(peer.alias || peer.id) + ' · ' + (online(peer) ? 'online' : 'offline')); option.value = peer.id; options.push(option); }
   select.replaceChildren(...options); if (options.some(option => option.value === previous)) select.value = previous;
  }
  $('sendButton').disabled = peers().length === 0;
@@ -150,14 +264,18 @@ function renderPeers() {
  const list = $('peerList'); list.replaceChildren(); const visible = filtered(); $('listCount').textContent = visible.length + ' of ' + peers().length;
  if (!visible.length) { list.append(el('p','empty',displayed ? 'No peers match this view. Register a peer to get started.' : 'Waiting for peers…')); return; }
  for (const peer of visible) {
-  const card = el('article','peer-card' + (peer.id === selected ? ' selected' : ''));
+  const child = isAgent(peer) && !!peer.host_id;
+  const card = el('article','peer-card' + (child ? ' child' : '') + (peer.id === selected ? ' selected' : ''));
   const button = el('button','select-peer'); button.type = 'button'; button.setAttribute('aria-label', 'Inspect ' + text(peer.alias || peer.id)); button.addEventListener('click',() => selectPeer(peer.id));
-  const head = el('header'), name = el('span','peer-name',peer.alias || peer.id), dot = el('i',online(peer) ? 'dot' : 'dot off'); head.append(name,dot);
+  const head = el('header'), name = el('span','peer-name',(child ? '↳ ' : '') + text(peer.alias || peer.id)), dot = el('i',online(peer) ? 'dot' : 'dot off'); head.append(name,dot);
   button.append(head,el('div','peer-id',peer.id)); card.append(button);
-  const badges = el('footer'); badges.append(el('span','badge',peer.role || 'peer'),el('span',online(peer) ? 'badge ok' : 'badge',online(peer) ? 'online' : 'offline'));
+  const badges = el('footer');
+  if (isHost(peer)) badges.append(el('span','badge host','host')); else if (isAgent(peer)) badges.append(el('span','badge openbot','openbot'));
+  badges.append(el('span','badge',peer.role || (isHost(peer) ? 'host' : isAgent(peer) ? 'openbot' : 'peer')),el('span',online(peer) ? 'badge ok' : 'badge',online(peer) ? 'online' : 'offline'));
   if (managed(peer)) badges.append(el('span','badge','managed'));
   badges.append(el('span',num(peer.undelivered_count) ? 'badge warn' : 'badge', num(peer.undelivered_count) + ' queued')); card.append(badges);
-  if (peer.summary) card.append(el('p','',peer.summary)); if (peer.cwd) card.append(el('small','',peer.cwd));
+  const summary = isHost(peer) ? [text(peer.summary).trim(), agentCount(peer) + ' agents'].filter(Boolean).join(' · ') : text(peer.summary).trim();
+  if (summary) card.append(el('p','',summary)); if (peer.cwd) card.append(el('small','',peer.cwd));
   const seen = el('small','','Last seen · ' + relative(peer.last_seen)); seen.title = text(peer.last_seen); card.append(seen); list.append(card);
  }
 }
@@ -169,6 +287,7 @@ function renderFlow() {
  for (const message of messages) {
   const item = el('article','flow-item' + (delivered(message) ? '' : ' queued'));
   item.append(el('header','',text(message.from_alias || message.from_id || 'System') + ' → ' + text(message.to_alias || message.to_id || 'Unknown peer')),el('p','',message.text));
+  const files = attachmentList(message); if (files) item.append(files);
   const footer = el('footer'), time = el('time','',relative(message.sent_at)); time.title = text(message.sent_at); footer.append(el('span',delivered(message) ? 'badge ok' : 'badge warn',delivered(message) ? 'delivered' : 'queued'),el('span','badge',message.from_kind || 'peer'),time); item.append(footer); list.append(item);
  }
  panel.scrollTop = top;
@@ -190,7 +309,7 @@ function renderTopology() {
   wires.append(svg('path',{d,class:'wire' + (!online(peer) ? ' offline' : '') + (isActive ? ' traffic' : '')}));
   if (isActive) flow.append(svg('path',{d,class:'signal' + (motion === 'pulse' ? ' pulse' : '')}));
   const group = svg('g',{class:'peer-node' + (!online(peer) ? ' offline' : '') + (peer.id === selected ? ' selected' : ''),transform:'translate('+x+' '+y+')',role:'button',tabindex:'0','aria-label':'Inspect '+text(peer.alias || peer.id)});
-  group.append(svg('title',{},text(peer.alias || peer.id) + ' · ' + text(peer.id)),svg('rect',{x:-83,y:-35,width:166,height:70,rx:11}),svg('circle',{cx:-65,cy:-12,r:3.5,fill:online(peer)?'#2dd4bf':'#687790'}),svg('text',{x:-53,y:-8},text(peer.alias || peer.id).slice(0,16)),svg('text',{x:-65,y:12,class:'sub'},text(peer.role || 'peer') + ' · ' + (online(peer)?'online':'offline')),svg('text',{x:-65,y:26,class:'sub'},text(peer.id).slice(0,22)));
+  group.append(svg('title',{},text(peer.alias || peer.id) + ' · ' + text(peer.id)),svg('rect',{x:-83,y:-35,width:166,height:70,rx:11}),svg('circle',{cx:-65,cy:-12,r:3.5,fill:online(peer)?'#2dd4bf':'#687790'}),svg('text',{x:-53,y:-8},text(peer.alias || peer.id).slice(0,16)),svg('text',{x:-65,y:12,class:'sub'},(isHost(peer) ? 'host · ' + agentCount(peer) + ' agents' : isAgent(peer) ? 'openbot' : text(peer.role || 'peer')) + ' · ' + (online(peer)?'online':'offline')),svg('text',{x:-65,y:26,class:'sub'},text(peer.id).slice(0,22)));
   if (num(peer.undelivered_count)) { group.append(svg('rect',{x:47,y:-45,width:42,height:20,rx:7,style:'fill:#382810;stroke:#806025'}),svg('text',{x:68,y:-31,'text-anchor':'middle',style:'fill:#f59e0b;font-size:10px'},Math.min(num(peer.undelivered_count),999))); }
   group.addEventListener('click',() => selectPeer(peer.id)); group.addEventListener('keydown',event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPeer(peer.id); } }); nodes.append(group);
  });
@@ -221,13 +340,85 @@ function pulse(message) {
 function formBody(form) { return Object.fromEntries(new FormData(form).entries()); }
 async function submit(form, statusId, task) { const buttons = [...form.querySelectorAll('button')]; buttons.forEach(button => button.disabled = true); status(statusId,''); try { await task(); } catch(error) { status(statusId,error.message); } finally { buttons.forEach(button => button.disabled = false); if (form.id === 'sendForm') $('sendButton').disabled = peers().length === 0; } }
 async function syncAfterMutation(statusId) { try { await refresh(); } catch(error) { status(statusId,'Action saved, but refresh failed: '+error.message); } }
-$('registerForm').addEventListener('submit',event => { event.preventDefault(); const form = event.currentTarget; submit(form,'registerStatus',async () => { await api('/api/peers',{method:'POST',body:JSON.stringify(formBody(form))}); form.reset(); status('registerStatus','Peer registered.','success'); await syncAfterMutation('registerStatus'); }); });
+// Register form: Kind=peer keeps the original single POST; Kind=openbot registers one peer per checked agent.
+let registerKind = 'peer';
+const checkedAgents = new Map();
+function selectedHost() { const id = $('hostSelect').value; return peers().find(p => p.id === id && isHost(p)) || null; }
+function setRegisterKind(kind) {
+ registerKind = kind === 'openbot' ? 'openbot' : 'peer'; const openbot = registerKind === 'openbot';
+ $('openbotFields').hidden = !openbot; $('aliasField').hidden = openbot; $('cwdField').hidden = openbot;
+ $('registerForm').elements.namedItem('alias').required = !openbot;
+ const role = $('registerForm').elements.namedItem('role'); if (openbot && !role.value.trim()) role.value = 'openbot'; else if (!openbot && role.value.trim() === 'openbot') role.value = '';
+ if (openbot) renderOpenbotRegister();
+}
+function renderOpenbotRegister() {
+ if (registerKind !== 'openbot') return;
+ const all = hosts(), select = $('hostSelect'), previous = select.value;
+ const options = []; if (all.length) { options.push(el('option','','Choose a host…')); options[0].value = ''; for (const host of all) { const option = el('option','',text(host.alias || host.id) + ' · ' + (online(host) ? 'online' : 'offline (disabled)')); option.value = host.id; option.disabled = !online(host); options.push(option); } }
+ select.replaceChildren(...options);
+ if (all.length) { const wanted = [...select.options].find(option => option.value === previous && !option.disabled) || [...select.options].find(option => option.value && !option.disabled); if (wanted) select.value = wanted.value; }
+ $('hostField').hidden = !all.length; $('noHost').hidden = all.length > 0;
+ if (!all.length) $('agentList').replaceChildren();
+ syncAliasPrefix(); renderAgentList();
+}
+function syncAliasPrefix() {
+ const host = selectedHost(); if (!host) return; const prefix = $('aliasPrefix'), value = prefix.value.trim();
+ if (!value || hosts().some(h => text(h.alias).trim() === value)) prefix.value = text(host.alias || host.id);
+}
+function renderAgentList() {
+ const host = selectedHost(), list = $('agentList'); list.replaceChildren();
+ const agents = host && Array.isArray(host.agents) ? host.agents.filter(a => a && typeof a.id === 'string') : [];
+ const checked = checkedAgents.get(host ? host.id : '') || new Set();
+ if (!host) list.append(el('p','empty','Agents of the selected host are listed here.')); else if (!agents.length) list.append(el('p','empty','This host reports no agents. Check openbot-cli list on that machine.'));
+ for (const agent of agents) {
+  const label = el('label','check agent-item'), input = document.createElement('input'); input.type = 'checkbox'; input.value = text(agent.id); input.checked = checked.has(text(agent.id));
+  input.addEventListener('change',() => { const set = checkedAgents.get(host.id) || new Set(); if (input.checked) set.add(text(agent.id)); else set.delete(text(agent.id)); checkedAgents.set(host.id, set); updateAgentToggle(); });
+  label.append(input,el('span','agent-name',agent.name || agent.id),el('span','agent-id',agent.id)); list.append(label);
+ }
+ updateAgentToggle();
+}
+function updateAgentToggle() {
+ const host = selectedHost(), agents = host && Array.isArray(host.agents) ? host.agents : [], checked = checkedAgents.get(host ? host.id : '') || new Set();
+ const all = agents.length > 0 && agents.every(agent => checked.has(text(agent.id)));
+ $('agentToggle').textContent = all ? 'Clear all' : 'Select all'; $('agentToggle').setAttribute('aria-pressed', String(all)); $('agentToggle').disabled = !host || !agents.length;
+}
+async function registerOpenbotPeers(form) {
+ const host = selectedHost(), prefix = $('aliasPrefix').value.trim(), role = form.elements.namedItem('role').value.trim() || 'openbot', summary = form.elements.namedItem('summary').value.trim();
+ if (!host) { status('registerStatus','Choose an online OpenBot host. Offline hosts cannot serve new agents.'); return; }
+ if (!prefix) { status('registerStatus','Enter an alias prefix.'); return; }
+ const checked = checkedAgents.get(host.id) || new Set(), agents = (Array.isArray(host.agents) ? host.agents : []).filter(agent => checked.has(text(agent.id)));
+ if (!agents.length) { status('registerStatus','Select at least one agent.'); return; }
+ let ok = 0; const failures = [];
+ for (const agent of agents) {
+  // Broker aliases accept ASCII letters, digits, spaces and . _ @ - only; non-ASCII names (e.g. Korean) fall back to the agent id.
+  const name = text(agent.name || '').trim(), suffix = name && /^[A-Za-z0-9 .@_-]+$/.test(name) ? name : text(agent.id);
+  try { await api('/api/peers',{method:'POST',body:JSON.stringify({kind:'openbot',host_id:host.id,agent_id:agent.id,alias:(prefix + '-' + suffix).slice(0,64),role,summary})}); ok++; checked.delete(text(agent.id)); }
+  catch (error) { failures.push(text(agent.name || agent.id) + ': ' + error.message); }
+ }
+ checkedAgents.set(host.id, checked); renderAgentList();
+ const headline = ok + ' of ' + agents.length + ' agent peers registered.';
+ status('registerStatus', failures.length ? headline + '\n' + failures.join('\n') : headline, failures.length ? 'error' : 'success');
+ await syncAfterMutation('registerStatus');
+}
+$('registerForm').addEventListener('submit',event => { event.preventDefault(); const form = event.currentTarget; if (registerKind === 'openbot') { submit(form,'registerStatus',() => registerOpenbotPeers(form)); return; } submit(form,'registerStatus',async () => { const body = formBody(form); await api('/api/peers',{method:'POST',body:JSON.stringify({alias:body.alias,role:body.role,summary:body.summary,cwd:body.cwd})}); form.reset(); setRegisterKind('peer'); status('registerStatus','Peer registered.','success'); await syncAfterMutation('registerStatus'); }); });
+$('registerKind').addEventListener('change',event => setRegisterKind(event.target.value));
+$('hostSelect').addEventListener('change',() => { syncAliasPrefix(); renderAgentList(); });
+$('agentToggle').addEventListener('click',() => { const host = selectedHost(); if (!host) return; const agents = Array.isArray(host.agents) ? host.agents : []; const checked = checkedAgents.get(host.id) || new Set(); const next = agents.every(agent => checked.has(text(agent.id))) ? new Set() : new Set(agents.map(agent => text(agent.id))); checkedAgents.set(host.id, next); renderAgentList(); });
+$('openInstall').addEventListener('click',() => { $('installDetails').open = true; $('installDetails').scrollIntoView({block:'start'}); });
 $('editForm').addEventListener('submit',event => { event.preventDefault(); const id = selected; if (!id) return; const form = event.currentTarget; submit(form,'editStatus',async () => { await api('/api/peers/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(formBody(form))}); status('editStatus','Changes saved.','success'); await syncAfterMutation('editStatus'); }); });
 async function deleteSelected(force) { const id = selected; if (!id) return; const button = force ? $('forceDelete') : $('deletePeer'); button.disabled = true; status('editStatus',''); try { await api('/api/peers/'+encodeURIComponent(id)+(force?'?force=1':''),{method:'DELETE'}); if (selected === id) { selected = ''; fillEditor(); $('forceConfirm').hidden = true; } await syncAfterMutation('globalError'); } catch(error) { status('editStatus',error.message); if (selected === id && error.status === 409 && error.code === 'peer_online') $('forceConfirm').hidden = false; } finally { button.disabled = false; } }
 $('deletePeer').addEventListener('click',() => deleteSelected(false)); $('forceDelete').addEventListener('click',() => deleteSelected(true)); $('cancelDelete').addEventListener('click',() => $('forceConfirm').hidden = true);
-$('sendForm').addEventListener('submit',event => { event.preventDefault(); const form = event.currentTarget, body = formBody(form); if (!body.text.trim()) { status('sendStatus','Enter a message before sending.'); return; } submit(form,'sendStatus',async () => { const result = await api('/api/messages',{method:'POST',body:JSON.stringify(body)}); form.elements.namedItem('text').value = ''; status('sendStatus','Message accepted for '+text(result.to_alias || result.to_id || body.to_id)+'. Delivery is shown in Live Flow.','success'); pulse({from_id:'dashboard',to_id:result.to_id || body.to_id}); await syncAfterMutation('sendStatus'); }); });
-$('quickSendForm').addEventListener('submit',event => { event.preventDefault(); const id = selected; if (!id) return; const form = event.currentTarget, body = formBody(form); if (!body.text.trim()) { status('quickSendStatus','Enter a message before sending.'); return; } submit(form,'quickSendStatus',async () => { const result = await api('/api/messages',{method:'POST',body:JSON.stringify({to_id:id,text:body.text})}); form.elements.namedItem('text').value = ''; status('quickSendStatus','Sent to '+text(result.to_alias || result.to_id || id)+'.','success'); pulse({from_id:'dashboard',to_id:result.to_id || id}); await syncAfterMutation('quickSendStatus'); }); });
-$('newPeer').addEventListener('click',() => { setTab('peers'); $('registerDetails').open = true; $('registerForm').elements.namedItem('alias').focus(); });
+async function sendWithFiles(form, statusId, toId, textValue) {
+ const files = pickedFiles(form), ids = files.length ? await uploadFiles(files, statusId) : [];
+ const body = {to_id:toId, text:textValue}; if (ids.length) body.attachments = ids;
+ const result = await api('/api/messages',{method:'POST',body:JSON.stringify(body)});
+ form.elements.namedItem('text').value = ''; const input = form.elements.namedItem('files'); if (input) input.value = '';
+ status(statusId,'Message accepted for '+text(result.to_alias || result.to_id || toId) + (ids.length ? ' with ' + ids.length + ' attachment' + (ids.length > 1 ? 's' : '') : '') + '. Delivery is shown in Live Flow.','success');
+ pulse({from_id:'dashboard',to_id:result.to_id || toId}); await syncAfterMutation(statusId);
+}
+$('sendForm').addEventListener('submit',event => { event.preventDefault(); const form = event.currentTarget, body = formBody(form); if (!body.text.trim()) { status('sendStatus','Enter a message before sending.'); return; } submit(form,'sendStatus',() => sendWithFiles(form,'sendStatus',body.to_id,body.text)); });
+$('quickSendForm').addEventListener('submit',event => { event.preventDefault(); const id = selected; if (!id) return; const form = event.currentTarget, body = formBody(form); if (!body.text.trim()) { status('quickSendStatus','Enter a message before sending.'); return; } submit(form,'quickSendStatus',() => sendWithFiles(form,'quickSendStatus',id,body.text)); });
+$('newPeer').addEventListener('click',() => { setTab('peers'); $('registerDetails').open = true; (registerKind === 'openbot' ? $('hostSelect') : $('registerForm').elements.namedItem('alias')).focus(); });
 $('clearSelection').addEventListener('click',() => { selected = ''; fillEditor(); $('flowPeer').value = ''; renderPeers(); renderTopology(); renderFlow(); });
 $('pause').addEventListener('click',() => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; $('pause').setAttribute('aria-pressed',String(paused)); $('app').classList.toggle('paused',paused); $('pauseNotice').hidden = !paused; const root = $('topology'); if (paused && root.pauseAnimations) root.pauseAnimations(); if (!paused) { if (root.unpauseAnimations) root.unpauseAnimations(); if (latest) { displayed = latest; render(); } const pending = deferredPulses; deferredPulses = []; pending.forEach(pulse); } });
 for (const button of document.querySelectorAll('[data-tab]')) { button.addEventListener('click',() => setTab(button.dataset.tab)); button.addEventListener('keydown',event => { const tabs = ['peers','flow','send']; if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; event.preventDefault(); const index = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (tabs.indexOf(tab)+(event.key === 'ArrowRight'?1:2))%3; setTab(tabs[index]); $('tab-'+tabs[index]).focus(); }); }
@@ -239,6 +430,14 @@ function saveToken(value) { token = value; try { if (value) localStorage.setItem
 $('tokenForm').addEventListener('submit',event => { event.preventDefault(); saveToken($('tokenInput').value.trim()); }); $('clearToken').addEventListener('click',() => saveToken(''));
 window.addEventListener('online',() => { if (!source) bootstrap(); });
 window.addEventListener('pagehide',() => { if (source) source.close(); });
+// Install panel: prefill the broker URL from this origin and copy each code block as plain text.
+for (const node of document.querySelectorAll('#installDetails [data-broker]')) node.textContent = location.origin;
+for (const button of document.querySelectorAll('#installDetails .copy')) button.addEventListener('click',async () => {
+ const pre = button.parentElement.querySelector('pre'); if (!pre) return;
+ let copied = false;
+ try { await navigator.clipboard.writeText(pre.textContent); copied = true; } catch { const range = document.createRange(); range.selectNodeContents(pre); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); }
+ button.textContent = copied ? 'Copied' : 'Selected · ⌘C'; button.classList.add('done'); setTimeout(() => { button.textContent = 'Copy'; button.classList.remove('done'); }, 1500);
+});
 renderTopology(); bootstrap();
 })();
 </script>

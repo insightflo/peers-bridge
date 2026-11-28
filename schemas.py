@@ -23,7 +23,8 @@ CLAUDE_PEERS_SEND_MESSAGE = {
     "name": "claude_peers_send_message",
     "description": (
         "Send a message through the claude-peers broker to another peer id or unique alias. "
-        "Use this to reply to incoming peer messages or to initiate contact."
+        "Use this to reply to incoming peer messages or to initiate contact. "
+        "Optionally attach up to 5 local files (max 20 MB each) with file_paths."
     ),
     "parameters": {
         "type": "object",
@@ -35,6 +36,14 @@ CLAUDE_PEERS_SEND_MESSAGE = {
             "message": {
                 "type": "string",
                 "description": "The message text to send.",
+            },
+            "file_paths": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Optional local files to attach (existing regular files, at most 5, "
+                    "each up to 20 MB). Only use when the reply needs to share a file."
+                ),
             },
         },
         "required": ["to_id", "message"],

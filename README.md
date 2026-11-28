@@ -34,6 +34,8 @@ Requirements: Hermes Agent with plugin support, Python 3.10+, and one host that 
 - **Real message delivery** — incoming peer messages are injected into the gateway's home-channel session as a normal agent turn, so the receiving agent actually reads and answers them (works on both current and older Hermes gateway builds).
 - **Duplicate-safe** — message-ID deduplication and hub-aware delivery marking prevent the same message from being processed twice.
 - **Self-healing registration** — heartbeat-based liveness, automatic re-registration after broker restarts or transient outages.
+- **OpenBot machines** — one bridge daemon per machine reports its OpenBot agents to the hub; agents are registered as child peers from the dashboard and addressed by alias like any other peer.
+- **Attachments** — send up to 5 files (20 MB each) with a message; receivers get the files downloaded locally and passed to the agent as absolute paths.
 
 ## Installation
 
@@ -138,6 +140,75 @@ claude_peers_send_message(to_id="CloudVM", message="ping — please ACK")
 
 The remote agent should receive the message in its home-channel session and reply within its next poll cycle (a few seconds).
 
+### 5. OpenBot machines (optional)
+
+An OpenBot machine runs the standalone `openbot_bridge.py` daemon instead of the Hermes plugin (Python 3 only, no dependencies, plus `node` for `openbot-cli`). Run **one daemon per machine** — it registers as an OpenBot *host*, reports the machine's agents from `openbot-cli list --json`, and later runs tasks for the agent peers you register from the dashboard.
+
+```bash
+git clone https://github.com/insightflo/peers-bridge.git "$HOME/Projects/peers-bridge"
+mkdir -p ~/.config/peers-bridge
+cat > ~/.config/peers-bridge/openbot-mac.env <<EOF
+CLAUDE_PEERS_BROKER_URL=https://your-broker.example.com
+CLAUDE_PEERS_BROKER_AUTH=<hub-token>
+CLAUDE_PEERS_NAME=OpenBot-Mac
+OPENBOT_NODE_BIN=$(command -v node)
+EOF
+chmod 600 ~/.config/peers-bridge/openbot-mac.env
+python3 ~/Projects/peers-bridge/openbot_bridge.py
+```
+
+The daemon reads `~/.config/peers-bridge/openbot-mac.env`, then `/etc/openbot-peers-bridge.env`, or the file named by `PEERS_BRIDGE_ENV_FILE` (first match wins; existing env vars are kept).
+
+| Variable | Purpose |
+|----------|---------|
+| `CLAUDE_PEERS_BROKER_URL` | Hub URL (default `https://peers.insightflo.si`) |
+| `CLAUDE_PEERS_BROKER_AUTH` | Hub token — the raw value is sent as the `Authorization` header, so include `Bearer ` |
+| `CLAUDE_PEERS_NAME` | Required. Host alias in **host mode**; the peer alias in legacy single-agent mode |
+| `OPENBOT_AGENT` | Optional. Unset → **host mode**. Set to an agent id → legacy single-agent daemon (all messages go to that agent) |
+| `OPENBOT_CLI_PATH` | Optional. `openbot-cli.mjs` path; auto-detected from the standard OpenBot.app locations |
+| `OPENBOT_NODE_BIN` | Optional. Node binary (default `node`). Use an absolute path under launchd/systemd, which have no shell `PATH` |
+| `OPENBOT_AGENTS_REFRESH_SECONDS` | Optional. How often the host re-runs `openbot-cli list --json`. Default `300` |
+| `PEERS_BRIDGE_ATTACHMENT_DIR`, `PEERS_BRIDGE_ATTACHMENT_KEEP_HOURS` | Received attachment cache — see [Attachments](#attachments-files--images) |
+
+To run it as a service on macOS:
+
+```bash
+mkdir -p ~/Library/LaunchAgents ~/Library/Logs
+cat > ~/Library/LaunchAgents/com.insightflo.peers-openbot-bridge.plist <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>Label</key><string>com.insightflo.peers-openbot-bridge</string>
+<key>ProgramArguments</key>
+<array><string>/usr/bin/env</string><string>python3</string><string>$HOME/Projects/peers-bridge/openbot_bridge.py</string></array>
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>$HOME/Library/Logs/openbot-peers-bridge.out.log</string>
+<key>StandardErrorPath</key><string>$HOME/Library/Logs/openbot-peers-bridge.err.log</string>
+</dict>
+</plist>
+EOF
+launchctl load ~/Library/LaunchAgents/com.insightflo.peers-openbot-bridge.plist
+tail -n 50 -f ~/Library/Logs/openbot-peers-bridge.err.log
+```
+
+After editing the env file, reload with `launchctl unload <plist> && launchctl load <plist>`. (The dashboard's **Install bridge on a machine** panel shows these same steps with the broker URL filled in, plus a systemd user unit for Linux.)
+
+Verify: within ~15 s the machine shows up in the dashboard's Peer sessions as an online host with its agent count. Only then can its agents be registered (next section).
+
+### 6. Register OpenBot agents from the dashboard
+
+Open `https://your-broker.example.com/dashboard` → **+ Register Peer** → Kind **OpenBot agent**. Pick the host, check the agents to expose, and register; each checked agent becomes one `openbot` peer (role `openbot`) that other peers can address by alias.
+
+Preconditions enforced by the broker (HTTP 400, shown verbatim in the dashboard):
+
+- The host must be **online** — `host is offline; install and start the bridge on that machine first`
+- The agent must be in the host's last reported list — `agent not found on host`
+- The host must be an OpenBot host — `host not found` / `host is not an OpenBot host`
+
+Alias rule: `<prefix>-<agent name>`, where the prefix defaults to the host alias. Broker aliases accept ASCII letters, digits, spaces and `. _ @ -` (≤64 chars), so an agent name with non-ASCII characters (e.g. Korean) falls back to `<prefix>-<agent id>`. Change the prefix before registering if you want a different scheme. (The alias can be edited later with **Peer settings**.)
+
 ## Usage
 
 Agent tools provided by the plugin:
@@ -153,6 +224,40 @@ Agent tools provided by the plugin:
 
 Aliases are 1–64 ASCII characters (letters, digits, spaces, `.`, `_`, `@`, `-`), unique case-insensitively across the hub. Incoming messages carry both `from_alias` and `from_id`.
 
+### OpenBot agents
+
+OpenBot agents don't have the tool table above. Their daemon formats the incoming message as a prompt and runs `openbot-cli run <agent> -`; the prompt ends with a reply hint, `Reply command: peers-send "<from_alias>" "<your reply>" --as "<child alias>"`. The agent runs that command **later, in its own process**, so the daemon's environment is not inherited: the broker URL/token come from the env file (`~/.config/peers-bridge/openbot-mac.env`) and the sender identity comes from `--as` (the child alias in host mode). `CLAUDE_PEERS_BROKER_AUTH` may be `Bearer <token>` or the bare token. The same script doubles as the CLI:
+
+```bash
+python3 ~/Projects/peers-bridge/openbot_bridge.py list                          # all peers on the hub (peers-list also works)
+python3 ~/Projects/peers-bridge/openbot_bridge.py send <alias> "text"            # send from CLAUDE_PEERS_NAME
+python3 ~/Projects/peers-bridge/openbot_bridge.py peers-send <alias> "text" --as "OpenBot-Mac-비서"  # explicit identity
+```
+
+Prompts name the command `peers-send`, and the script accepts `peers-send` / `peers-list` as subcommand names. To let agents run `peers-send` as-is, put a wrapper on PATH (e.g. `exec python3 <repo>/openbot_bridge.py peers-send "$@"`). Every subcommand reads the same env file as the daemon.
+
+## Attachments (files & images)
+
+Messages can carry up to **5 files, 20 MB each** (broker defaults; see env vars below). The flow is upload-then-reference: the sender `POST`s each file to `/attachments`, then sends the message with the returned ids. The receiver's bridge downloads them to `~/.peers-bridge/attachments/<message id>/<name>` and appends the **absolute paths** to the prompt it hands the agent:
+
+```
+Attachments:
+- /Users/me/.peers-bridge/attachments/1842/report.pdf (report.pdf, application/pdf, 48213 bytes)
+```
+
+**Delivery passes a path, not the image.** Whether the agent can *view* an image depends on that agent's own tools and model — Hermes or OpenBot agents that can read local files can open it; a text-only agent cannot.
+
+Sending:
+
+- **Hermes tool** — `claude_peers_send_message(to_id, message, file_paths=["/path/to/file", ...])`. Missing/oversized/too-many files, or a rejected upload, return `{"ok": false, "sent": false, "error": ...}` without sending the message.
+- **Hermes CLI** — `hermes claude-peers send <to> "<message>" --file <path> [--file <path> ...]` (`-f` works too).
+- **OpenBot side** — `peers-send <alias> "<text>" --file <path> [--file <path> ...]` (also `-f <path>` / `--file=<path>`). Any failed upload aborts with exit 1 before the message is sent.
+- **Dashboard** — the Send tab and the per-peer Quick send both have an **Attachments** input (multiple files; images render as thumbnails in the message list).
+
+Broker environment (hub): `CLAUDE_PEERS_ATTACHMENT_MAX_BYTES` (default 20 MB = `20971520`), `CLAUDE_PEERS_ATTACHMENT_DIR` (default `<db dir>/attachments`), `CLAUDE_PEERS_ATTACHMENT_RETENTION_HOURS` (default 168), `CLAUDE_PEERS_ATTACHMENT_GC_SECONDS` (default 300). Accepted MIME types: `image/*`, `text/*`, `audio/*`, `video/*`, and `application/pdf|json|zip|octet-stream|msword|openxmlformats…`; anything else is rejected with `File type <mime> is not allowed`.
+
+Retention on the hub: uploads referenced by no message are deleted after 24 h; files referenced by a message are kept until every referencing message is older than the retention window (7 days). Receivers keep their local copies for `PEERS_BRIDGE_ATTACHMENT_KEEP_HOURS` (default 168; `0` deletes them after every poll) under `PEERS_BRIDGE_ATTACHMENT_DIR` — set these on both the Hermes and OpenBot sides.
+
 ## Architecture notes
 
 | Process | Broker target |
@@ -160,6 +265,11 @@ Aliases are 1–64 ASCII characters (letters, digits, spaces, `.`, `_`, `@`, `-`
 | Gateway agent (`_HERMES_GATEWAY=1`) | Remote hub (`CLAUDE_PEERS_BROKER_URL`) |
 | CLI / TUI agent (`HERMES_INTERACTIVE=1`) | Local broker (`127.0.0.1:7899`) |
 | Subagent (kanban / delegate) | Registration skipped |
+| OpenBot host daemon (`openbot_bridge.py`, host mode) | Remote hub — registers `kind: "openbot-host"`, polls on behalf of its children |
+
+**Peer kinds** on the hub: `peer` (Hermes bridges and dashboard address-book entries), `openbot-host` (one per OpenBot machine; a managed entry that survives going stale), and `openbot` (an agent registered under a host; `host_id` + `agent_id`). Children never go stale on their own — their status follows the host's heartbeat — and the host's heartbeat response carries the list of children (`served_peers`) so the daemon learns new registrations without a restart. Messages to a child wake the host's SSE connection; the host polls `to_id IN (host, children…)`, routes by `to_id`, and runs `openbot-cli run <agent_id> -` with the child's alias in the prompt. Deleting a host deletes its children and their undelivered messages.
+
+**Attachments**: uploads live as `<ATTACHMENT_DIR>/<id>` with a row in an `attachments` table (`id`, `name`, `size`, `mime`, `sha256`, `uploaded_by`); `messages.attachments` stores the JSON array of references, which the broker resolves to metadata on every projection (`poll-messages`, `/api/messages`, snapshot, SSE `message`). Uploads use a small built-in multipart parser because Bun's `formData()` infers `File.type` from the filename and would make the MIME allowlist unenforceable.
 
 - **Broker resolved per loop iteration, not at import** — plugin modules import before gateway env vars are set; re-resolving each cycle lets the gateway pick up the remote hub automatically.
 - **Gateway injection with fallback** — received messages are delivered via the gateway wake mechanism; on older Hermes builds without `gateway.wake`, the bridge falls back to injecting a synthetic message event. Either way the message becomes a real agent turn.
@@ -177,6 +287,11 @@ Aliases are 1–64 ASCII characters (letters, digits, spaces, `.`, `_`, `@`, `-`
 | `Peer X not found` when sending from CLI/TUI | CLI sessions talk to the **local** broker; remote peers are only visible to gateway sessions. Route via the gateway peer, or send from a gateway session |
 | Same message injected repeatedly | Old `bridge.py` without 404-tolerant delivery marking → update the plugin |
 | Broker rejects requests behind Cloudflare | Ensure plugin version sends the custom User-Agent header |
+| Registered OpenBot agent shows **offline** | Child status follows its host: the host daemon isn't running (or lost the hub). Check `openbot_bridge.py` / the launchd unit on that machine; the agent returns online when the host heartbeats again |
+| Message to a newly registered OpenBot agent arrives late | Should be immediate — the host re-reads its child list as soon as a poll sees an unknown `to_id`. If it waits for the next heartbeat (~15 s) or never arrives, update `openbot_bridge.py` on that machine |
+| Dashboard rejects an OpenBot agent registration | `host is offline…` → start the host daemon first; `agent not found on host` → the agent isn't in the last `openbot-cli list` report (wait for the next refresh, `OPENBOT_AGENTS_REFRESH_SECONDS`, or restart the daemon) |
+| Upload rejected (`File type … is not allowed` / `File exceeds … the byte limit`) | MIME outside the allowlist or over `CLAUDE_PEERS_ATTACHMENT_MAX_BYTES` (20 MB default). Compress or convert the file |
+| `host not found` / `host is not an OpenBot host` when registering | The `host_id` doesn't point at a running OpenBot host — register the daemon first, don't point at a Hermes peer |
 
 ## Real-Time SSE Push & Event-Driven Wake-up
 
@@ -192,11 +307,14 @@ Copy both `broker.remote-hub.ts` (as `broker.ts`) and `dashboard.html` to your b
 
 - **Live Dashboard**: Open `http://127.0.0.1:7899/dashboard` (or `https://your-broker.example.com/dashboard`). When `CLAUDE_PEERS_HUB_TOKEN` is set, the UI prompts for the Bearer token and streams live updates over `GET /api/stream` + `GET /api/snapshot`.
 - **Peer CRUD API**:
-  - `GET /api/peers` — list all online and offline managed peers
-  - `POST /api/peers` — pre-register a managed peer (`alias`, `role`, `summary`, `cwd`)
+  - `GET /api/peers` — list all online and offline managed peers (hosts include their reported `agents`)
+  - `POST /api/peers` — pre-register a managed peer (`alias`, `role`, `summary`, `cwd`), or an OpenBot agent (`kind: "openbot"`, `host_id`, `agent_id`, `alias`)
   - `PATCH /api/peers/:id` — update alias, summary, role, cwd, or managed flag
-  - `DELETE /api/peers/:id` — delete offline peer (or `?force=1` for online peer)
-  - `POST /api/messages` — send a system message directly from the dashboard to any peer
+  - `DELETE /api/peers/:id` — delete offline peer (or `?force=1` for online peer); deleting a host also deletes its agent peers
+  - `POST /api/messages` — send a system message directly from the dashboard to any peer (`attachments: [id, …]` optional)
+  - `POST /api/attachments` — upload a file (multipart, field `file`) → `201 {id, name, size, mime, sha256}`
+- **OpenBot registration form**: Kind **OpenBot agent** lists the selected online host's agents (one peer per checked agent; *Select all* available). Offline hosts are disabled in the list; with no host registered the form points to the install panel.
+- **Install bridge on a machine** panel: copyable step-by-step for OpenBot machines (clone, env file, launchd plist with `launchctl load`, verify) plus a Linux systemd user unit; the broker URL is filled in from the page origin. Hermes machines are directed to §2–§4 of this README.
 
 ## License
 
